@@ -98,7 +98,7 @@ function make_consistent_types(fn, y0, tspan, btab::Tableau)
     #
     # Returns
     # - Et: eltype of time, needs to be a real "continuous" type, at
-    #       the moment a AbstractFloat
+    #       the moment an AbstractFloat
     # - Eyf: suitable eltype of y and f(t,y)
     #   --> both of these are set to typeof(y0[1]/(tspan[end]-tspan[1]))
     # - Ty: container type of y0

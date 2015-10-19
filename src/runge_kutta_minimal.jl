@@ -10,27 +10,30 @@
 #NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
 
 ## High lever interface, this will change
-ode21(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk21; kwargs...)
-ode23(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk23; kwargs...)
-ode45_fe(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk45; kwargs...)
-ode45_dp(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_dopri5; kwargs...)
+ode45_dp(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, fbt_dopri5; kwargs...)
 # Use Dormand-Prince version of ode45 by default
 const ode45 = ode45_dp
-ode78(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_feh78; kwargs...)
 
 ## Generic Solver
 #TODO: I am not sure I want to keep this helper function. I am not against being
 # more strict about what can be passed
-function oderk_adapt(fn, y0, tspan, btab::TableauRKExplicit; kwords...)
+#function oderk_adapt(fn, y0, tspan, btab::TableauRKExplicit; kwords...)
     # For y0 which don't support indexing.
-    fn_ = (t, y) -> [fn(t, y[1])]
-    t, y = oderk_adapt(fn_, [y0], tspan, btab; kwords...)
-    return t, vcat_nosplat(y)
-end
+    #fn_ = (t, y) -> [fn(t, y[1])]
+#    t, y = oderk_adapt(fn, y0, tspan, btab; kwords...)
+#    return t, vcat_nosplat(y)
+#end
 
+#TODO: I find the attempt at being so generic in this code unnessary complexity
+# I am going to force it to accept real Array of Float64
+#
+# Also this is following the ideas in Matlab of having `tspan` be super
+# overloaded, but this seeems crazy to me. I can just use the dispatch of Julia
+# instead. I will force `tspan:Vector{Float64}`
+#
 # This function is the meat of the adaptive solvers.
-function oderk_adapt{N, S}(fn, y0::AbstractVector, tspan,
-                           btab_::TableauRKExplicit{N, S};
+function oderk_adapt{N, S}(fn, y0::Vector{Float64}, tspan::Vector{Float64},
+                           btab::TableauRKExplicit{N, S};
                            reltol = 1.0e-5,
                            abstol = 1.0e-8,
                            norm = Base.norm,
@@ -47,40 +50,40 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector, tspan,
 
     # For y0 which support indexing.  Currently y0 <: AbstractVector but
     # that could be relaxed with a Holy-trait.
-    !isadaptive(btab_) && error("Can only use this solver with an adaptive RK Butcher table")
+    !isadaptive(btab) && error("Can only use this solver with an adaptive RK Butcher table")
 
-    Et, Eyf, Ty, btab = make_consistent_types(fn, y0, tspan, btab_)
+    #Et, Eyf, Ty, btab = make_consistent_types(fn, y0, tspan, btab_)
     # parameters
     order = minimum(btab.order)
-    timeout_const = 5 # after step reduction do not increase step for
-                      # timeout_const steps
+    const timeout_const = 5 # after step reduction do not increase step for
+                            # timeout_const steps
 
     ## Initialization
     dof = length(y0)
-    tspan = convert(Vector{Et}, tspan)
+    #tspan = convert(Vector{Et}, tspan)
     t = tspan[1]
     tstart = tspan[1]
     tend = tspan[end]
 
     # work arrays:
-    y = similar(y0, Eyf, dof)      # y at time t
+    y = Array(Float64, dof)      # y at time t
     y[:] = y0
-    ytrial = similar(y0, Eyf, dof) # trial solution at time t+dt
-    yerr = similar(y0, Eyf, dof) # error of trial solution
-    ks = Array(Ty, S)
+    ytrial = Array(Float64, dof) # trial solution at time t+dt
+    yerr = Array(Float64, dof) # error of trial solution
+    ks = Array(Vector{Float64}, S)
     # allocate!(ks, y0, dof) # no need to allocate as fn is not in-place
-    ytmp = similar(y0, Eyf, dof)
+    ytmp = Array(Float64, dof)
 
     # output ys
     nsteps_fixed = length(tspan) # these are always output
-    ys = Array(Ty, nsteps_fixed)
+    ys = Array(Vector{Float64}, nsteps_fixed)
     allocate!(ys, y0, dof)
     ys[1] = y0
 
     # Option points determines where solution is returned:
     if points == :all
         tspan_fixed = tspan
-        tspan = Et[tstart]
+        tspan = Float64[tstart]
         iter_fixed = 2 # index into tspan_fixed
         sizehint!(tspan, nsteps_fixed)
     elseif points != :specified
@@ -92,9 +95,9 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector, tspan,
         dt = sign(initstep)==tdir ? initstep : error("initstep has wrong sign.")
     end
     # Diagnostics
-    dts = Et[]
+    dts = Float64[]
     errs = Float64[]
-    steps = [0,0]  # [accepted, rejected]
+    steps = [0, 0]  # [accepted, rejected]
 
     ## Integration loop
     islaststep = abs(t + dt - tend) <= eps(tend) ? true : false
@@ -177,22 +180,22 @@ function rk_embedded_step!{N,S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab:
     # On components: arithmetic, zero
     # On y0 container: fill!, setindex!, getindex
 
-    fill!(ytrial, zero(eltype(ytrial)) )
-    fill!(yerr, zero(eltype(ytrial)) )
+    fill!(ytrial, zero(eltype(ytrial)))
+    fill!(yerr, zero(eltype(ytrial)))
     for d = 1:dof
         ytrial[d] += btab.b[1,1]*ks[1][d]
-        yerr[d]   += btab.b[2,1]*ks[1][d]
+        yerr[d] += btab.b[2,1]*ks[1][d]
     end
     for s = 2:S
         calc_next_k!(ks, ytmp, y, s, fn, t, dt, dof, btab)
         for d = 1:dof
-            ytrial[d] += btab.b[1,s]*ks[s][d]
-            yerr[d]   += btab.b[2,s]*ks[s][d]
+            ytrial[d] += btab.b[1, s]*ks[s][d]
+            yerr[d] += btab.b[2, s]*ks[s][d]
         end
     end
     for d = 1:dof
-        yerr[d]   = dt * (ytrial[d]-yerr[d])
-        ytrial[d] = y[d] + dt * ytrial[d]
+        yerr[d] = dt*(ytrial[d] - yerr[d])
+        ytrial[d] = y[d] + dt*ytrial[d]
     end
 end
 
@@ -201,7 +204,7 @@ function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
     # Estimates the error and a new step size following Hairer &
     # Wanner 1992, p167 (with some modifications)
     #
-    # If timeout>0 no step size increase is allowed, timeout is
+    # If timeout > 0 no step size increase is allowed, timeout is
     # decremented in here.
     #
     # Returns the error, newdt and the number of timeout-steps
