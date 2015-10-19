@@ -1,0 +1,132 @@
+################################################################################
+# Helper functions:
+################################################################################
+
+# I have factored this out so that I can use it in a clean namespaced import
+# so that it is clear that things like `vcat_nosplat` are not builtins.
+# Currently I don't know how to do the import logic to get this. I have issues
+# with getting the types from the `runge_kutta_tableaus.jl`
+
+function allocate!{T}(vec::Vector{T}, y0, dof)
+    # Allocates all vectors inside a Vector{Vector} using the same
+    # kind of container as y0 has and element type eltype(eltype(vec)).
+    for s=1:length(vec)
+        vec[s] = similar(y0, eltype(T), dof)
+    end
+end
+
+function index_or_push!(vec, i, val)
+    # Fills in the vector until there is no space, then uses push!
+    # instead.
+    if length(vec)>=i
+        vec[i] = val
+    else
+        push!(vec, val)
+    end
+end
+
+vcat_nosplat(y) =  eltype(y[1])[el[1] for el in y] # Does vcat(y...) without the splatting
+
+function hermite_interp!(y, tquery, t, dt, y0, y1, f0, f1)
+    # For dense output see Hairer & Wanner p.190 using Hermite
+    # interpolation. Updates y in-place.
+    #
+    # f_0 = f(x_0 , y_0) , f_1 = f(x_0 + h, y_1 )
+    # this is O(3). TODO for higher order.
+
+    theta = (tquery-t)/dt
+    for i=1:length(y0)
+        y[i] = ((1 - theta)*y0[i] + theta*y1[i] + theta*(theta - 1) *
+                ((1 - 2*theta)*(y1[i] - y0[i]) + (theta - 1)*dt*f0[i] + theta*dt*f1[i]))
+    end
+    nothing
+end
+
+function hermite_interp(tquery, t, dt, y0, y1, f0, f1)
+    # Returns the y instead of in-place
+    y = similar(y0)
+    hermite_interp!(y, tquery, t, dt, y0, y1, f0, f1)
+    return y
+end
+
+# estimator for initial step based on book
+# "Solving Ordinary Differential Equations I" by Hairer et al., p.169
+function hinit(F, x0, t0, tend, p, reltol, abstol)
+    # Returns first step, direction of integration and F evaluated at t0
+    tdir = sign(tend-t0)
+    tdir == 0 && error("Zero time span")
+    tau = max(reltol*norm(x0, Inf), abstol)
+    d0 = norm(x0, Inf)/tau
+    f0 = F(t0, x0)
+    d1 = norm(f0, Inf)/tau
+    if d0 < 1e-5 || d1 < 1e-5
+        h0 = 1e-6
+    else
+        h0 = 0.01*(d0/d1)
+    end
+    # perform Euler step
+    x1 = x0 + tdir*h0*f0
+    f1 = F(t0 + tdir*h0, x1)
+    # estimate second derivative
+    d2 = norm(f1 - f0, Inf)/(tau*h0)
+    if max(d1, d2) <= 1e-15
+        h1 = max(1e-6, 1e-3*h0)
+    else
+        pow = -(2.0 + log10(max(d1, d2)))/(p + 1.0)
+        h1 = 10.0^pow
+    end
+    return tdir*min(100*h0, h1, tdir*(tend-t0)), tdir, f0
+end
+
+# isoutofdomain takes the state and returns true if state is outside
+# of the allowed domain.  Used in adaptive step-control.
+isoutofdomain(x) = isnan(x)
+
+function make_consistent_types(fn, y0, tspan, btab::Tableau)
+    # There are a few types involved in a call to a ODE solver which
+    # somehow need to be consistent:
+    #
+    # Et = eltype(tspan)
+    # Ey = eltype(y0)
+    # Ef = eltype(Tf)
+    #
+    # There are also the types of the containers, but they are not
+    # needed as `similar` is used to make containers.
+    # Tt = typeof(tspan)
+    # Ty = typeof(y0)              # note, this can be a scalar
+    # Tf = typeof(F(tspan(1),y0))  # note, this can be a scalar
+    #
+    # Returns
+    # - Et: eltype of time, needs to be a real "continuous" type, at
+    #       the moment a AbstractFloat
+    # - Eyf: suitable eltype of y and f(t,y)
+    #   --> both of these are set to typeof(y0[1]/(tspan[end]-tspan[1]))
+    # - Ty: container type of y0
+    # - btab: tableau with entries converted to Et
+
+    # Needed interface:
+    # On components: /, -
+    # On container: eltype, promote_type
+    # On time container: eltype
+
+    Ty = typeof(y0)
+    Eyf = typeof(y0[1]/(tspan[end] - tspan[1]))
+
+    Et = eltype(tspan)
+    @assert Et <: Real
+    if !(Et <: AbstractFloat)
+        Et = promote_type(Et, Float64)
+    end
+
+    # if all are Floats, make them the same
+    if Et<:AbstractFloat &&  Eyf <: AbstractFloat
+        Et = promote_type(Et, Eyf)
+        Eyf = Et
+    end
+
+    !isleaftype(Et) && warn("The eltype(tspan) is not a concrete type!  Change type of tspan for better performance.")
+    !isleaftype(Eyf) && warn("The eltype(y0/tspan[1]) is not a concrete type!  Change type of y0 and/or tspan for better performance.")
+
+    btab_ = convert(Et, btab)
+    return Et, Eyf, Ty, btab_
+end
