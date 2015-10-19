@@ -1,8 +1,6 @@
 using DiffEQ
 using Base.Test
 
-@test 1 == 2
-
 # rober testcase from http://www.unige.ch/~hairer/testset/testset.html
 let
     println("ROBER test case")
