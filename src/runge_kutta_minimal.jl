@@ -11,7 +11,7 @@
 #ode21(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk21; kwargs...)
 #ode23(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk23; kwargs...)
 #ode45_fe(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk45; kwargs...)
-ode45_dp(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_dopri5_F64; kwargs...)
+ode45_dp(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_dopri5; kwargs...)
 # Use Dormand-Prince version of ode45 by default
 const ode45 = ode45_dp
 #ode78(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_feh78; kwargs...)
@@ -124,7 +124,7 @@ function oderk_adapt{N, S}(fn, y0::Vector{Float64}, tspan::Vector{Float64},
     return RKODESolution(tspan, ys)
 end
 
-function rk_embedded_step!{N, S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab::TableauRKExplicit{N,S})
+function rk_embedded_step!{N, S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab::TableauRKExplicit{N, S})
     # Does one embedded R-K step updating ytrial, yerr and ks.
     #
     # Assumes that ks[:, 1] is already calculated!
