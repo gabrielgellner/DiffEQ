@@ -1,5 +1,3 @@
-
-
 # Explicit Runge-Kutta solvers
 ##############################
 # (Hairer & Wanner 1992 p.134, p.165-169)
@@ -18,20 +16,6 @@ ode45_dp(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_dopri5_F64; k
 const ode45 = ode45_dp
 #ode78(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_feh78; kwargs...)
 
-## Generic Solver
-#TODO: I am not sure I want to keep this helper function. I am not against being
-# more strict about what can be passed
-#function oderk_adapt(fn, y0, tspan, btab::TableauRKExplicit; kwords...)
-#    # For y0 which don't support indexing.
-#    fn_ = (t, y) -> [fn(t, y[1])]
-#    t, y = oderk_adapt(fn_, [y0], tspan, btab; kwords...)
-#    return t, vcat_nosplat(y)
-#end
-
-#TODO: Get rid of all the type generality of the input arguements and the code
-# paths. I find this is overly complex and I prefer to just specify that this
-# code will operate on Float64 arrays.
-#
 # This function is the meat of the adaptive solvers.
 function oderk_adapt{N, S}(fn, y0::Vector{Float64}, tspan::Vector{Float64},
                      btab::TableauRKExplicit{N, S};
@@ -177,7 +161,6 @@ function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
     #
     # TODO:
     # - allow component-wise reltol and abstol?
-    # - allow other norms
     timout_after_nan = 5
     fac = [0.8, 0.9, 0.25^(1/(order + 1)), 0.38^(1/(order + 1))][1]
     facmax = 5.0 # maximal step size increase. 1.5-5
@@ -186,12 +169,12 @@ function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
     # in-place calculate xerr./tol
     for d = 1:dof
         # if outside of domain (usually NaN) then make step size smaller by maximum
-        isoutofdomain(xtrial[d]) && return 10., dt*facmin, timout_after_nan
+        isoutofdomain(xtrial[d]) && return 10.0, dt*facmin, timout_after_nan
         xerr[d] = xerr[d]/(abstol + max(norm(x0[d]), norm(xtrial[d]))*reltol) # Eq 4.10
     end
     err = norm(xerr, 2) # Eq. 4.11
     newdt = min(maxstep, tdir*dt*max(facmin, fac*(1/err)^(1/(order + 1)))) # Eq 4.13 modified
-    if timeout>0
+    if timeout > 0
         newdt = min(newdt, dt)
         timeout -= 1
     end
