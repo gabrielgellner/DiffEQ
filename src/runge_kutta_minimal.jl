@@ -45,8 +45,9 @@ function oderk_adapt{N, S}(fn, y0::Vector{Float64}, tspan::Vector{Float64},
 
     !isadaptive(btab_) && error("Can only use this solver with an adaptive RK Butcher table")
 
-    #TODO: get rid of this call, I just need to work on btab
-    Et, Eyf, Ty, btab = make_consistent_types(fn, y0, tspan, btab_)
+    #TODO: get rid of this call, I want to just have the tableaus be concrete
+    # types of Float64
+    btab = convert(Float64, btab_)
 
     # parameters
     order = minimum(btab.order)
