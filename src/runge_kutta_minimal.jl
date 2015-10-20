@@ -42,6 +42,8 @@ function oderk_adapt{N, S}(fn, y0::Vector{Float64}, tspan::Vector{Float64},
                      initstep = 0.0
                      )
 
+    ##TODO: think about how to get rid of this check. Why not have two types of
+    # tableaus? So I can just have the dispatch deal with this?
     !isadaptive(btab) && error("Can only use this solver with an adaptive RK Butcher table")
 
     #TODO: get rid of this call, I want to just have the tableaus be concrete
@@ -60,8 +62,7 @@ function oderk_adapt{N, S}(fn, y0::Vector{Float64}, tspan::Vector{Float64},
     tend = tspan[end]
 
     # work arrays:
-    y = Array(Float64, dof)      # y at time t
-    y[:] = y0
+    y = copy(y0)      # y at time t
     ytrial = Array(Float64, dof) # trial solution at time t+dt
     yerr = Array(Float64, dof) # error of trial solution
     ks = Array(Float64, S, dof)
