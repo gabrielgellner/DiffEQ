@@ -173,6 +173,7 @@ const bt_dopri5 = TableauRKExplicit(:dopri, (5, 4), Rational{Int64},
                       5179//57600     0     7571//16695     393//640     -92097//339200     187//2100     1//40],
                      [0, 1//5, 3//10, 4//5, 8//9, 1, 1]
                      )
+const bt_dopri5_F64 = convert(Float64, bt_dopri5)
 
 # Fehlberg 7(8) coefficients
 # Values from pag. 65, Fehlberg, Erwin. "Classical fifth-, sixth-, seventh-, and eighth-order Runge-Kutta formulas with stepsize control".

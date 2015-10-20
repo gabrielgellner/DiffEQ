@@ -13,7 +13,7 @@
 #ode21(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk21; kwargs...)
 #ode23(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk23; kwargs...)
 #ode45_fe(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk45; kwargs...)
-ode45_dp(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_dopri5; kwargs...)
+ode45_dp(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_dopri5_F64; kwargs...)
 # Use Dormand-Prince version of ode45 by default
 const ode45 = ode45_dp
 #ode78(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_feh78; kwargs...)
@@ -34,20 +34,19 @@ const ode45 = ode45_dp
 #
 # This function is the meat of the adaptive solvers.
 function oderk_adapt{N, S}(fn, y0::Vector{Float64}, tspan::Vector{Float64},
-                           btab_::TableauRKExplicit{N, S};
-                           reltol = 1.0e-5,
-                           abstol = 1.0e-8,
-                           norm = Base.norm,
-                           minstep = abs(tspan[end] - tspan[1])/1e18,
-                           maxstep = abs(tspan[end] - tspan[1])/2.5,
-                           initstep = 0.0
-                           )
+                     btab::TableauRKExplicit{N, S};
+                     reltol = 1.0e-5,
+                     abstol = 1.0e-8,
+                     minstep = abs(tspan[end] - tspan[1])/1e18,
+                     maxstep = abs(tspan[end] - tspan[1])/2.5,
+                     initstep = 0.0
+                     )
 
-    !isadaptive(btab_) && error("Can only use this solver with an adaptive RK Butcher table")
+    !isadaptive(btab) && error("Can only use this solver with an adaptive RK Butcher table")
 
     #TODO: get rid of this call, I want to just have the tableaus be concrete
     # types of Float64
-    btab = convert(Float64, btab_)
+    #btab = convert(Float64, btab_)
 
     # parameters
     order = minimum(btab.order)
