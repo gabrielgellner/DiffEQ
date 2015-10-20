@@ -50,21 +50,21 @@ immutable TableauRKExplicit{Name, S, T} <: Tableau{Name, S, T}
     # second for error calc.
     b::Matrix{T}
     c::Vector{T}
-    function TableauRKExplicit(order,a,b,c)
+    function TableauRKExplicit(order, a, b, c)
         @assert isa(S, Integer)
         @assert isa(Name, Symbol)
-        @assert c[1]==0
+        @assert c[1] == 0
         @assert istril(a)
         @assert S == length(c) == size(a, 1) == size(a, 2) == size(b, 2)
-        @assert size(b,1)==length(order)
-        @assert norm(sum(a,2)-c'',Inf)<1e-10 # consistency.
-        new(order,a,b,c)
+        @assert size(b, 1) == length(order)
+        @assert norm(sum(a, 2) - c'', Inf) < 1e-10 # consistency.
+        new(order, a, b, c)
     end
 end
 
 function TableauRKExplicit{T}(name::Symbol, order::(@compat(Tuple{Vararg{Int}})),
                    a::Matrix{T}, b::Matrix{T}, c::Vector{T})
-    TableauRKExplicit{name,length(c),T}(order, a, b, c)
+    TableauRKExplicit{name, length(c), T}(order, a, b, c)
 end
 
 function TableauRKExplicit(name::Symbol, order::(@compat(Tuple{Vararg{Int}})), T::Type,
@@ -73,7 +73,7 @@ function TableauRKExplicit(name::Symbol, order::(@compat(Tuple{Vararg{Int}})), T
                                         convert(Matrix{T},b), convert(Vector{T},c) )
 end
 
-conv_field{T,N}(D,a::Array{T,N}) = convert(Array{D,N}, a)
+conv_field{T, N}(D, a::Array{T, N}) = convert(Array{D, N}, a)
 
 function Base.convert{Tnew <: Real, Name, S, T}(::Type{Tnew}, tab::TableauRKExplicit{Name,S,T})
     # Converts the tableau coefficients to the new type Tnew
@@ -95,28 +95,32 @@ isadaptive(b::TableauRKExplicit) = size(b.b, 1) == 2
 
 
 # First same as last.  Means ks[:,end]=ks_nextstep[:,1], c.f. H&W p.167
-isFSAL(btab::TableauRKExplicit) = btab.a[end,:]==btab.b[1,:] && btab.c[end]==1 # the latter is not needed really
+isFSAL(btab::TableauRKExplicit) = btab.a[end, :] == btab.b[1, :] && btab.c[end] == 1 # the latter is not needed really
+
+##TODO: All these tableaus are stored as rational types and then coverted into
+# the type needed for the algorithm. As I will only support Float64 I need to
+# think about what I want to do.
 
 ## Butcher Tableaus for explicit RK methods
 # Fixed step:
-const bt_feuler = TableauRKExplicit(:feuler,(1,), Rational{Int64},
+const bt_feuler = TableauRKExplicit(:feuler, (1,), Rational{Int64},
                                     zeros(Int,1,1),
                                     [1]',
                                     [0]
                                     )
-const bt_midpoint = TableauRKExplicit(:midpoint,(2,), Rational{Int64},
+const bt_midpoint = TableauRKExplicit(:midpoint, (2,), Rational{Int64},
                                       [0  0
                                        1//2  0],
                                       [0, 1]',
                                       [0, 1//2]
                                       )
-const bt_heun = TableauRKExplicit(:heun,(2,), Rational{Int64},
+const bt_heun = TableauRKExplicit(:heun, (2,), Rational{Int64},
                                   [0  0
                                    1  0],
                                   [1//2, 1//2]',
                                   [0, 1])
 
-const bt_rk4 = TableauRKExplicit(:rk4,(4,),Rational{Int64},
+const bt_rk4 = TableauRKExplicit(:rk4, (4,), Rational{Int64},
                                  [0    0    0 0
                                   1//2 0    0 0
                                   0    1//2 0 0
@@ -126,7 +130,7 @@ const bt_rk4 = TableauRKExplicit(:rk4,(4,),Rational{Int64},
 
 # Adaptive step:
 # Heun Euler https://en.wikipedia.org/wiki/Runge–Kutta_methods
-const bt_rk21 = TableauRKExplicit(:heun_euler,(2,1), Rational{Int64},
+const bt_rk21 = TableauRKExplicit(:heun_euler, (2, 1), Rational{Int64},
                                   [0     0
                                    1     0],
                                   [1//2  1//2
@@ -134,7 +138,7 @@ const bt_rk21 = TableauRKExplicit(:heun_euler,(2,1), Rational{Int64},
                                   [0,    1])
 
 # Bogacki–Shampine coefficients
-const bt_rk23 = TableauRKExplicit(:bogacki_shampine,(2,3), Rational{Int64},
+const bt_rk23 = TableauRKExplicit(:bogacki_shampine, (2, 3), Rational{Int64},
                                   [0           0      0      0
                                    1/2         0      0      0
                                    0         3/4      0      0
@@ -145,7 +149,7 @@ const bt_rk23 = TableauRKExplicit(:bogacki_shampine,(2,3), Rational{Int64},
                          )
 
 # Fehlberg https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta%E2%80%93Fehlberg_method
-const bt_rk45 = TableauRKExplicit(:fehlberg,(4,5),Rational{Int64},
+const bt_rk45 = TableauRKExplicit(:fehlberg, (4, 5),Rational{Int64},
                           [  0           0           0            0         0     0
                              1//4        0           0            0         0     0
                              3//32       9//32       0            0         0     0
@@ -157,7 +161,7 @@ const bt_rk45 = TableauRKExplicit(:fehlberg,(4,5),Rational{Int64},
                             [0,          1//4,       3//8,       12//13,    1,    1//2])
 
 # Dormand-Prince https://en.wikipedia.org/wiki/Dormand%E2%80%93Prince_method
-const bt_dopri5 = TableauRKExplicit(:dopri, (5,4), Rational{Int64},
+const bt_dopri5 = TableauRKExplicit(:dopri, (5, 4), Rational{Int64},
                      [0           0            0                   0            0      0 0
                       1//5        0            0                   0            0      0 0
                       3//40       9//40        0                   0            0      0 0
@@ -173,7 +177,7 @@ const bt_dopri5 = TableauRKExplicit(:dopri, (5,4), Rational{Int64},
 # Fehlberg 7(8) coefficients
 # Values from pag. 65, Fehlberg, Erwin. "Classical fifth-, sixth-, seventh-, and eighth-order Runge-Kutta formulas with stepsize control".
 # National Aeronautics and Space Administration.
-const bt_feh78 = TableauRKExplicit(:feh78, (7,8), Rational{Int64},
+const bt_feh78 = TableauRKExplicit(:feh78, (7, 8), Rational{Int64},
                             [     0       0      0       0         0          0        0        0      0       0     0 0 0
                                   2//27   0      0       0         0          0        0        0      0       0     0 0 0
                                   1//36   1//12  0       0         0          0        0        0      0       0     0 0 0
