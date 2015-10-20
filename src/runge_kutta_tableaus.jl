@@ -56,7 +56,7 @@ immutable TableauRKExplicit{Name, S, T} <: Tableau{Name, S, T}
         @assert c[1] == 0
         @assert istril(a)
         @assert S == length(c) == size(a, 1) == size(a, 2) == size(b, 2)
-        @assert size(b,1)==length(order)
+        @assert size(b, 1) == length(order)
         @assert norm(sum(a, 2) - c'', Inf) < 1e-10 # consistency.
         new(order, a, b, c)
     end
@@ -64,7 +64,7 @@ end
 
 function TableauRKExplicit{T}(name::Symbol, order::(@compat(Tuple{Vararg{Int}})),
                    a::Matrix{T}, b::Matrix{T}, c::Vector{T})
-    TableauRKExplicit{name,length(c),T}(order, a, b, c)
+    TableauRKExplicit{name, length(c), T}(order, a, b, c)
 end
 
 function TableauRKExplicit(name::Symbol, order::(@compat(Tuple{Vararg{Int}})), T::Type,
@@ -95,11 +95,11 @@ isadaptive(b::TableauRKExplicit) = size(b.b, 1) == 2
 
 
 # First same as last.  Means ks[:,end]=ks_nextstep[:,1], c.f. H&W p.167
-isFSAL(btab::TableauRKExplicit) = btab.a[end, :] == btab.b[1, :] && btab.c[end]==1 # the latter is not needed really
+isFSAL(btab::TableauRKExplicit) = btab.a[end, :] == btab.b[1, :] && btab.c[end] == 1 # the latter is not needed really
 
-##NOTE All of these tables are stored in Rational form and then coverted to
-# the type of the solution when called ... as I really only want to support
-# Float64 types I need to see if this is worth it.
+##TODO: All these tableaus are stored as rational types and then coverted into
+# the type needed for the algorithm. As I will only support Float64 I need to
+# think about what I want to do.
 
 ## Butcher Tableaus for explicit RK methods
 # Fixed step:
@@ -173,7 +173,7 @@ const bt_dopri5 = TableauRKExplicit(:dopri, (5, 4), Rational{Int64},
                       5179//57600     0     7571//16695     393//640     -92097//339200     187//2100     1//40],
                      [0, 1//5, 3//10, 4//5, 8//9, 1, 1]
                      )
-const fbt_dopri5 = convert(Float64, bt_dopri5)
+const bt_dopri5_F64 = convert(Float64, bt_dopri5)
 
 # Fehlberg 7(8) coefficients
 # Values from pag. 65, Fehlberg, Erwin. "Classical fifth-, sixth-, seventh-, and eighth-order Runge-Kutta formulas with stepsize control".
