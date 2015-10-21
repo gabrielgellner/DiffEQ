@@ -87,7 +87,7 @@ function Base.convert{Tnew <: Real, Name, S, T}(::Type{Tnew}, tab::TableauRKExpl
             newflds = tuple(newflds..., fld)
         end
     end
-    TableauRKExplicit{Name,S,Tnew}(newflds...) # TODO: could this be done more generically in a type-stable way?
+    TableauRKExplicit{Name, S, Tnew}(newflds...) # TODO: could this be done more generically in a type-stable way?
 end
 
 
@@ -101,8 +101,6 @@ isFSAL(btab::TableauRKExplicit) = btab.a[end, :] == btab.b[1, :] && btab.c[end] 
 ##TODO: All these tableaus are stored as rational types and then coverted into
 # the type needed for the algorithm. As I will only support Float64 I need to
 # think about what I want to do.
-
-# Adaptive step:
 
 # Dormand-Prince https://en.wikipedia.org/wiki/Dormand%E2%80%93Prince_method
 const bt_dopri5 = TableauRKExplicit(:dopri, (5, 4), Float64,

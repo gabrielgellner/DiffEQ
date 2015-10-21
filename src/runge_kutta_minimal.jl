@@ -30,14 +30,10 @@ function oderk_adapt{N, S}(fn, y0::Vector{Float64}, tspan::Vector{Float64},
     # tableaus? So I can just have the dispatch deal with this?
     !isadaptive(btab) && error("Can only use this solver with an adaptive RK Butcher table")
 
-    #TODO: get rid of this call, I want to just have the tableaus be concrete
-    # types of Float64
-    #btab = convert(Float64, btab_)
-
     # parameters
     order = minimum(btab.order)
-    timeout_const = 5 # after step reduction do not increase step for
-                      # timeout_const steps
+    const timeout_const = 5 # after step reduction do not increase step for
+                            # timeout_const steps
 
     ## Initialization
     dof = length(y0)
@@ -145,7 +141,7 @@ function rk_embedded_step!{N, S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab
     end
     for d = 1:dof
         yerr[d] = dt*(ytrial[d] - yerr[d])
-        ytrial[d] = y[d] + dt * ytrial[d]
+        ytrial[d] = y[d] + dt*ytrial[d]
     end
 end
 
