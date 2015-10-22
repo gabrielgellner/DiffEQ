@@ -8,7 +8,7 @@ function f(t, y)
     ydot
 end
 
-t = collect(linspace(0.0, 12.0, 10))
+t = linspace(0.0, 12.0, 10)
 sol = ode45(f, [0.0, 1.0, 1.0], t; reltol = 1e-4, abstol = 1e-4)
 
 println(size(sol.y))

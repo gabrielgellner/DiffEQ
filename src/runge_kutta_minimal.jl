@@ -17,7 +17,7 @@ const ode45 = ode45_dp
 #ode78(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_feh78; kwargs...)
 
 # This function is the meat of the adaptive solvers.
-function oderk_adapt{N, S}(fn, y0::Vector{Float64}, tspan::Vector{Float64},
+function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVector{Float64},
                      btab::TableauRKExplicit{N, S};
                      reltol = 1.0e-5,
                      abstol = 1.0e-8,
@@ -177,7 +177,7 @@ function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
     return err, tdir*newdt, timeout
 end
 
-function calc_next_k!(ks::Matrix, ytmp::Vector, y, s, fn, t, dt, dof, btab)
+function calc_next_k!(ks::Matrix{Float64}, ytmp::AbstractVector{Float64}, y, s, fn, t, dt, dof, btab)
     # Calculates the next ks and puts it into ks[s]
     # - ks and ytmp are modified inside this function.
 
