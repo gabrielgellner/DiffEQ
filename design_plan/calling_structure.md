@@ -9,7 +9,11 @@ argument.
     2) giving it explicit points in array `trange`
 
 For the first case it is not clear to me is what points are returned if the
-2-elemnt version are given. Does it return the underlying steps taken?
+2-elemnt version are given. Does it return the underlying steps taken? Upon
+further thinking version 1) is silly to implement. What does it by you vs the
+explicit version `linspace(tstart, tend, nsteps)` or similarly `tstart:stepsize:tend`
+as both of these are `AbstractArray` types in Julia I have no need to support
+the earlier Matlab syntax.
 
 For a different look using `NDSolve` in Mathematica returns an interpolating
 function instead of an array of values. You are then responsible for calling
