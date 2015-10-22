@@ -1,3 +1,4 @@
 *.jl.cov
 *.jl.*.cov
 *.jl.mem
+examples/.ipynb_checkpoints/Hastings and Powell-checkpoint.ipynb
