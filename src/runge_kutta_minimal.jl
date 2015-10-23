@@ -1,3 +1,5 @@
+using ArrayViews
+
 # Explicit Runge-Kutta solvers
 ##############################
 # (Hairer & Wanner 1992 p.134, p.165-169)
@@ -84,10 +86,15 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
 
             # Output:
             f0 = ks[1, :]
+            ##FSAL -> First Same As Last
             f1 = isFSAL(btab) ? ks[S, :] : fn(t + dt, ytrial)
             # interpolate onto given output points
             while iter - 1 < nsteps_fixed && (tdir*tspan[iter] < tdir*(t + dt) || islaststep) # output at all new times which are < t+dt
-                ys[iter, :] = hermite_interp(tspan[iter], t, dt, y, ytrial, f0, f1) # TODO: 3rd order only!
+                ##TODO: I do a copy here instead of working in place. This might be
+                ## a source of a major speed loss
+                #hermite_interp!(ys[iter], tspan[iter], t, dt, y, ytrial, f0, f1)
+                #ys[iter, :] = hermite_interp(tspan[iter], t, dt, y, ytrial, f0, f1) # TODO: 3rd order only!
+                hermite_interp!(unsafe_view(ys, iter, :), tspan[iter], t, dt, y, ytrial, f0, f1)
                 iter += 1
             end
             ks[1, :] = f1 # load ks[1] == f0 for next step

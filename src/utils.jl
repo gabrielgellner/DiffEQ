@@ -46,7 +46,6 @@ function hermite_interp!(y, tquery, t, dt, y0, y1, f0, f1)
     nothing
 end
 
-##TODO: I don't think this is used
 function hermite_interp(tquery, t, dt, y0, y1, f0, f1)
     # Returns the y instead of in-place
     y = similar(y0)
