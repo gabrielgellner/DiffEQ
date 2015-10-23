@@ -1,6 +1,8 @@
 using DiffEQ
 using Base.Test
 
+##TODO: this code is crazy slow -- even seemingly for the ODE.jl original
+
 ##Code taken from ODE.jl
 # rober testcase from http://www.unige.ch/~hairer/testset/testset.html
 #=
@@ -17,9 +19,8 @@ let
     sol = ode45(f, [1.0, 0.0, 0.0], t; abstol=1e-8, reltol=1e-8,
                                         maxstep=1e11/10, minstep=1e11/1e18)
 
-    refsol = [0.2083340149701255e-07,
-              0.8333360770334713e-13,
-              0.9999999791665050] # reference solution at tspan[2]
+    # reference solution for the final time found
+    refsol = [0.2083340149701255e-07, 0.8333360770334713e-13, 0.9999999791665050]
     @test norm(refsol - sol.y[end, :], Inf) < 2e-10
 end
 =#

@@ -48,28 +48,34 @@ using DiffEQ
 using Base.Test
 
 ## Problems
+
+## Free vibrating oscillator
+# Oscillator Parameters
+const k = 4.0
+const m = 1.0
+
 """Free vibration of a simple oscillator::
     m \ddot{u} + k u = 0, u(0) = u_0 \dot{u}(0) \dot{u}_0
 Solution::
     u(t) = u_0*cos(sqrt(k/m)*t)+\dot{u}_0*sin(sqrt(k/m)*t)/sqrt(k/m)
 """
 function simple_oscillator(t, y)
-    k = 4.0
-    m = 1.0
-    A= zeros(2, 2)
+    A = zeros(2, 2)
     A[1, 2] = 1.0
-    A[2, 1] = k/m
+    A[2, 1] = -k/m
     return A*y
 end
 
 function simple_oscillator_analytic(t)
-    k = 4.0
-    m = 1.0 ##TODO I should put this in the top scope
-    z0 = [1.0, 0.1]
+    u0 = [1.0, 0.1]
     omega = sqrt(k/m)
-    z0[1]*cos(omega*t) + z0[2]*sin(omega*t)/omega
+    u0[1]*cos(omega*t) + u0[2]*sin(omega*t)/omega
 end
 
 tout = linspace(0, 100, 100)
-sol = ode45(simple_oscillator, [0.5, 0.5], tout)
-@test isapprox(sol.y[:, 1],  simple_oscillator_analytic(tout))
+sol = ode45(simple_oscillator, [1.0, 0.1], tout; abstol = 1e-8, reltol = 1e-8)
+# I seem to have that if my abstol = 1e-x then my accurate digits is around 1e-(x - 1)
+# I need to check if this makes sense
+##scipy uses `allclose(sol1, sol1, atol = self.atol, rtol = self.rtol)` which seems
+## like it is measuring the actual erros ... need to lookin to how to do this
+@test norm(sol.y[:, 1] - simple_oscillator_analytic(tout), Inf) < 1e-6
