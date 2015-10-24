@@ -75,6 +75,8 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
         # do one step (assumes ks[1] == f0)
         rk_embedded_step!(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab)
         # Check error and find a new step size:
+        ##TODO: we call the function with y, ytrial, yerr names, but the function
+        ## uses names like x0, xtrial, xerr which is confusing
         err, newdt, timeout = stepsize_hw92!(dt, tdir, y, ytrial, yerr, order, timeout,
                                              dof, abstol, reltol, maxstep, norm)
 
@@ -85,9 +87,11 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
             push!(errs, err)
 
             # Output:
-            f0 = ks[1, :]
+            ##NOTE in `ODE.jl` as they are using array of arrays then the line
+            ## f0 = ks[1] is a view not a copy
+            f0 = sub(ks, 1, :)
             ##FSAL -> First Same As Last
-            f1 = isFSAL(btab) ? ks[S, :] : fn(t + dt, ytrial)
+            f1 = isFSAL(btab) ? sub(ks, S, :) : fn(t + dt, ytrial)
             # interpolate onto given output points
             while iter - 1 < nsteps_fixed && (tdir*tspan[iter] < tdir*(t + dt) || islaststep) # output at all new times which are < t+dt
                 ##TODO: I do a copy here instead of working in place. This might be
@@ -97,7 +101,7 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
                 hermite_interp!(sub(ys, iter, :), tspan[iter], t, dt, y, ytrial, f0, f1)
                 iter += 1
             end
-            ks[1, :] = f1 # load ks[1] == f0 for next step
+            ks[1, :] = f1 # load ks[1, :] == f0 for next step
 
             # Break if this was the last step:
             islaststep && break
@@ -134,16 +138,13 @@ function rk_embedded_step!{N, S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab
     #
     # Modifies ytrial, yerr, ks, and ytmp
     ##NOTE: currently hard coded to be Float64
-    fill!(ytrial, 0.0) #TODO why do I zero this? and the next seems like I overwrite them
+    fill!(ytrial, 0.0)
     fill!(yerr, 0.0)
     for d = 1:dof
         ytrial[d] += btab.b[1, 1]*ks[1, d]
         yerr[d] += btab.b[2 ,1]*ks[1, d]
     end
     for s = 2:S
-        ##TODO my best guess is that this line is the slowdown source. I have changed
-        ## ks from an array of arrays to a matrix, and I imagine somehow I am accidently
-        ## making lots of copies
         calc_next_k!(ks, ytmp, y, s, fn, t, dt, dof, btab)
         for d = 1:dof
             ytrial[d] += btab.b[1, s]*ks[s, d]
@@ -169,6 +170,7 @@ function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
     # TODO:
     # - allow component-wise reltol and abstol?
     timout_after_nan = 5
+    ##TODO: this is a very complicated way to calculate 0.8 ;)
     fac = [0.8, 0.9, 0.25^(1/(order + 1)), 0.38^(1/(order + 1))][1]
     facmax = 5.0 # maximal step size increase. 1.5-5
     facmin = 1.0/facmax  # maximal step size decrease. ?
@@ -189,16 +191,11 @@ function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
 end
 
 function calc_next_k!(ks::Matrix{Float64}, ytmp::Vector{Float64}, y, s, fn, t, dt, dof, btab)
-    # Calculates the next ks and puts it into ks[s]
+    # Calculates the next ks and puts it into ks[s, :]
     # - ks and ytmp are modified inside this function.
-
-    ##TODO: I currently have a serious speed regression and this function might
-    ## be part of it, what I need to look at is that I am using ks[idx, :] which
-    ## will give a non contiguous array, and also might be copying at times.
-    ## I need to investigate if any of this is an issue
     ytmp[:] = y
     for ss = 1:(s - 1), d = 1:dof
-        ytmp[d] += dt * ks[ss, :][d]*btab.a[s, ss]
+        ytmp[d] += dt*ks[ss, d]*btab.a[s, ss]
     end
     ks[s, :] = fn(t + btab.c[s]*dt, ytmp)
     nothing
