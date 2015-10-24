@@ -1,5 +1,3 @@
-using ArrayViews
-
 # Explicit Runge-Kutta solvers
 ##############################
 # (Hairer & Wanner 1992 p.134, p.165-169)
@@ -44,11 +42,13 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
     tend = tspan[end]
 
     # work arrays:
-    y = copy(y0)      # y at time t
+    y = copy(y0)      # y at time tstart
     ytrial = Array(Float64, dof) # trial solution at time t+dt
     yerr = Array(Float64, dof) # error of trial solution
+    ##TODO doing it this way makes a non contigous data structure on the
+    ## rows which is what I am largely using. This can potentially be a real
+    ## performance hit
     ks = Array(Float64, S, dof)
-    # allocate!(ks, y0, dof) # no need to allocate as fn is not in-place
     ytmp = Array(Float64, dof)
 
     # output ys
@@ -94,7 +94,7 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
                 ## a source of a major speed loss
                 #hermite_interp!(ys[iter], tspan[iter], t, dt, y, ytrial, f0, f1)
                 #ys[iter, :] = hermite_interp(tspan[iter], t, dt, y, ytrial, f0, f1) # TODO: 3rd order only!
-                hermite_interp!(unsafe_view(ys, iter, :), tspan[iter], t, dt, y, ytrial, f0, f1)
+                hermite_interp!(sub(ys, iter, :), tspan[iter], t, dt, y, ytrial, f0, f1)
                 iter += 1
             end
             ks[1, :] = f1 # load ks[1] == f0 for next step
@@ -133,13 +133,17 @@ function rk_embedded_step!{N, S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab
     # Assumes that ks[:, 1] is already calculated!
     #
     # Modifies ytrial, yerr, ks, and ytmp
-    fill!(ytrial, zero(eltype(ytrial)))
-    fill!(yerr, zero(eltype(ytrial)))
+    ##NOTE: currently hard coded to be Float64
+    fill!(ytrial, 0.0) #TODO why do I zero this? and the next seems like I overwrite them
+    fill!(yerr, 0.0)
     for d = 1:dof
         ytrial[d] += btab.b[1, 1]*ks[1, d]
         yerr[d] += btab.b[2 ,1]*ks[1, d]
     end
     for s = 2:S
+        ##TODO my best guess is that this line is the slowdown source. I have changed
+        ## ks from an array of arrays to a matrix, and I imagine somehow I am accidently
+        ## making lots of copies
         calc_next_k!(ks, ytmp, y, s, fn, t, dt, dof, btab)
         for d = 1:dof
             ytrial[d] += btab.b[1, s]*ks[s, d]
@@ -184,10 +188,14 @@ function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
     return err, tdir*newdt, timeout
 end
 
-function calc_next_k!(ks::Matrix{Float64}, ytmp::AbstractVector{Float64}, y, s, fn, t, dt, dof, btab)
+function calc_next_k!(ks::Matrix{Float64}, ytmp::Vector{Float64}, y, s, fn, t, dt, dof, btab)
     # Calculates the next ks and puts it into ks[s]
     # - ks and ytmp are modified inside this function.
 
+    ##TODO: I currently have a serious speed regression and this function might
+    ## be part of it, what I need to look at is that I am using ks[idx, :] which
+    ## will give a non contiguous array, and also might be copying at times.
+    ## I need to investigate if any of this is an issue
     ytmp[:] = y
     for ss = 1:(s - 1), d = 1:dof
         ytmp[d] += dt * ks[ss, :][d]*btab.a[s, ss]

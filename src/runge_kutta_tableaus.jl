@@ -95,7 +95,9 @@ isexplicit(b::TableauRKExplicit) = istril(b.a) # Test whether it's an explicit m
 isadaptive(b::TableauRKExplicit) = size(b.b, 1) == 2
 
 
-# First same as last.  Means ks[:,end]=ks_nextstep[:,1], c.f. H&W p.167
+##TODO: Why do I need to always check this? It seems like it is fixed for a given
+## tableau, couln't this just be a static boolean field?
+# First same as last.  Means ks[:, end] = ks_nextstep[:, 1], c.f. H&W p.167
 isFSAL(btab::TableauRKExplicit) = btab.a[end, :] == btab.b[1, :] && btab.c[end] == 1 # the latter is not needed really
 
 ##TODO: All these tableaus are stored as rational types and then coverted into

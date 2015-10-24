@@ -7,37 +7,12 @@
 # Currently I don't know how to do the import logic to get this. I have issues
 # with getting the types from the `runge_kutta_tableaus.jl`
 
-##NOTE: this is the function that creates the horrendous Array{Array} structure
-# that `ODE.jl` outputs
-function allocate!{T}(vec::Vector{T}, y0, dof)
-    # Allocates all vectors inside a Vector{Vector} using the same
-    # kind of container as y0 has and element type eltype(eltype(vec)).
-    for s = 1:length(vec)
-        vec[s] = similar(y0, eltype(T), dof)
-    end
-end
-
-##NOTE: this function is used to fill up the output array which will grow once
-# the space has run out
-function index_or_push!(vec, i, val)
-    # Fills in the vector until there is no space, then uses push!
-    # instead.
-    if length(vec) >= i
-        vec[i] = val
-    else
-        push!(vec, val)
-    end
-end
-
-vcat_nosplat(y) =  eltype(y[1])[el[1] for el in y] # Does vcat(y...) without the splatting
-
 function hermite_interp!(y, tquery, t, dt, y0, y1, f0, f1)
     # For dense output see Hairer & Wanner p.190 using Hermite
     # interpolation. Updates y in-place.
     #
     # f_0 = f(x_0 , y_0) , f_1 = f(x_0 + h, y_1 )
     # this is O(3). TODO for higher order.
-
     theta = (tquery - t)/dt
     for i = 1:length(y0)
         y[i] = ((1 - theta)*y0[i] + theta*y1[i] + theta*(theta - 1) *
