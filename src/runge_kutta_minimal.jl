@@ -52,13 +52,12 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
     ytmp = Array(Float64, dof)
 
     # output ys
-    nsteps_fixed = length(tspan) # these are always output
+    nsteps_fixed = length(tspan)
     ys = Array(Float64, nsteps_fixed, dof)
-    #allocate!(ys, y0, dof)
     ys[1, :] = y0
 
     # Time
-    dt, tdir, ks[1, :] = hinit(fn, y, tstart, tend, order, reltol, abstol) # sets ks[1] = f0
+    dt, tdir, ks[1, :] = hinit(fn, y, tstart, tend, order, reltol, abstol) # sets ks[1, :] = f0
     if initstep != 0
         dt = sign(initstep) == tdir ? initstep : error("initstep has wrong sign.")
     end
@@ -72,7 +71,7 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
     timeout = 0 # for step-control
     iter = 2 # the index into tspan and ys
     while true
-        # do one step (assumes ks[1] == f0)
+        # do one step (assumes ks[1, :] == f0)
         rk_embedded_step!(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab)
         # Check error and find a new step size:
         ##TODO: we call the function with y, ytrial, yerr names, but the function
@@ -83,14 +82,17 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
         if err <= 1.0 # accept step
             # diagnostics
             steps[1] += 1
+            ##TODO: as I have removed variable output size I likely don't need
+            ## to grow these
             push!(dts, dt)
             push!(errs, err)
 
             # Output:
-            ##NOTE in `ODE.jl` as they are using array of arrays then the line
+            ##NOTE in `ODE.jl` as they are using array of arrays which means the line
             ## f0 = ks[1] is a view not a copy
             f0 = sub(ks, 1, :)
-            ##FSAL -> First Same As Last
+            ##FSAL -> First Same As Last, this code seems like it could be set in a btab field instead
+            ## of always being recalculated
             f1 = isFSAL(btab) ? sub(ks, S, :) : fn(t + dt, ytrial)
             # interpolate onto given output points
             while iter - 1 < nsteps_fixed && (tdir*tspan[iter] < tdir*(t + dt) || islaststep) # output at all new times which are < t+dt
