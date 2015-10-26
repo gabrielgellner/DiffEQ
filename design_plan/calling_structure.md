@@ -38,3 +38,8 @@ Things that I need:
 * `minstep = abs(tspan[end] - tspan[1])/1e18`,
 * `maxstep = abs(tspan[end] - tspan[1])/2.5`,
 * `initstep = 0.0`
+
+### Universial calling function
+I was thinking of using the name `desolve` like R's similar package. I also thought of names like `dsolve` `ndsolve`. I am not sure if `desolve` is the best
+as it kind of reads like we are "unsolving" something ... Modern SciPy uses `ode` for there driver and object/method access to updating the parameters like
+`ode(func, tspan).set_method("dopri5")` etc. I guess the nice thing about this name is that it is similar to the Matlab `odeXX` with the integer codes removed as this can call any number of them. That being said I would like to be able to solve delay and DAE problems with the same driver, not just ODE's.

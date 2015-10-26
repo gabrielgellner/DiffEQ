@@ -19,3 +19,28 @@ type RKODESolution <: AbstractODESolution
     x::Array{Float64, 1}
     y::Array{Float64, 2}
 end
+
+#################################################
+# Settings/Options Type
+#################################################
+type IVPOptions
+    reltol::Float64 #TODO this can also be an array
+    abstol::Float64 #TODO this can also be an array
+    minstep::Float64
+    maxstep::Float64
+    initstep::Float64 #TODO or initial_step?
+    method::Symbol
+    #norm_func #Do I want this?
+    #max_num_steps
+end
+
+##TODO: SO I have an issue in that min/max{step} requires access to the time
+## range of the call to generate the actual Float64 numbers.
+ivpoptions(;
+    abstol = 1e-3,
+    reltol = 1e-6,
+    minstep = :auto,
+    maxstep = :auto
+    initstep = 0.0,
+    method = :dopri45
+) = IVPOptions(reltol, abstol, minstep, maxstep, initstep, method)
