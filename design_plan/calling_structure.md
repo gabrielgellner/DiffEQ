@@ -24,3 +24,17 @@ I do like the idea of a version that will return such an object for use.
 Also from my days as a Fortran user I really miss the ability to just call the
 the solver for a single step inside a loop. I wonder if Julia is efficient
 enough to do something like this.
+
+## New API ideas
+Currently we follow the `ODE.jl` versions which is really just a simplified
+version of Matlab's api. One thing that might be worth doing is making a
+settings interface. Matlab uses `odeset` to do this. For Julia we would want
+to do this with a custom type.
+
+### Settings
+Things that I need:
+* `reltol = 1.0e-5`,
+* `abstol = 1.0e-8`,
+* `minstep = abs(tspan[end] - tspan[1])/1e18`,
+* `maxstep = abs(tspan[end] - tspan[1])/2.5`,
+* `initstep = 0.0`

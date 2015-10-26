@@ -6,6 +6,7 @@ keyword arguments. I will look to matlabs odeset as a model, I will also
 want to use the naming conventions of `Optim.jl` for things like `abstol`
 as best I can for consistency.
 
+### Matlab
 So Matlab has options for: (I am changing the naming to be Julian they use CamelCase)
 * reltol = 1e-3,
 * abstol = 1e-6 (can be scalor or vector),
@@ -24,6 +25,7 @@ They also have things like:
 * Refine (refines grid of solutions by integer factor)
 * Stats (reports diagnostics)
 
+### Juila `ODE.jl`
 From the code I have from `ODE.jl` we have the kw args:
 * `reltol = 1.0e-5`,
 * `abstol = 1.0e-8`,
@@ -32,6 +34,33 @@ From the code I have from `ODE.jl` we have the kw args:
 * `maxstep = abs(tspan[end] - tspan[1])/2.5`,
 * `initstep = 0.0`,
 * `points = :all`
+
+### Mathematica
+The options for `NDSolve` are:
+* AccuracyGoal (absolute local error) = WorkingPrecision/2
+* PrecisionGoal (relative local error) = WorkingPrecision/2
+* InterpolationOrder
+* MaxStepFraction = 1/10
+* MaxSteps
+* MaxStepSize
+* Method
+* NormFunction
+* StartingStepSize
+* WorkingPrecision = MachinePrecision
+* StepMonitor
+
+### Sundails (CVODE)
+* abstol
+* reltol
+* MaxOrd = 5 (Maximum order for BDF method) or = 12 (for Adams method)
+* MaxNumSteps = 500
+* MaxHnilWarns = 10
+* InitStep
+* MinStep
+* MaxStep
+* DenseJacFn
+* BandJacFn
+(there are a bunch more options for the type of matrix and Kyrlov methods used)
 
 ## Output Type
 For output Matlab either returns arrays (t, y) with the solutions
