@@ -96,7 +96,8 @@ isadaptive(b::TableauRKExplicit) = size(b.b, 1) == 2
 
 
 ##TODO: Why do I need to always check this? It seems like it is fixed for a given
-## tableau, couln't this just be a static boolean field?
+## tableau, couldn't this just be a static boolean field? This seems to be a special
+## feature of the dopri method -- ie it was derived to have this property
 # First same as last.  Means ks[:, end] = ks_nextstep[:, 1], c.f. H&W p.167
 isFSAL(btab::TableauRKExplicit) = btab.a[end, :] == btab.b[1, :] && btab.c[end] == 1 # the latter is not needed really
 
