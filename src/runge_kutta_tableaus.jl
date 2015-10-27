@@ -1,5 +1,3 @@
-using Compat
-
 # Explicit Runge-Kutta solvers
 ##############################
 # (Hairer & Wanner 1992 p.134, p.165-169)
@@ -45,7 +43,7 @@ using Compat
 
 ##TODO: get rid of the type genericity from this. Just make them tables of Float64
 immutable TableauRKExplicit{Name, S, T} <: Tableau{Name, S, T}
-    order::(@compat(Tuple{Vararg{Int}})) # the order of the methods
+    order::Tuple{Vararg{Int}} # the order of the methods
     a::Matrix{T}
     # one or several row vectors.  First row is used for the step,
     # second for error calc.
@@ -63,14 +61,14 @@ immutable TableauRKExplicit{Name, S, T} <: Tableau{Name, S, T}
     end
 end
 
-function TableauRKExplicit{T}(name::Symbol, order::(@compat(Tuple{Vararg{Int}})),
+function TableauRKExplicit{T}(name::Symbol, order::Tuple{Vararg{Int}},
                    a::Matrix{T}, b::Matrix{T}, c::Vector{T})
     TableauRKExplicit{name, length(c), T}(order, a, b, c)
 end
 
-function TableauRKExplicit(name::Symbol, order::(@compat(Tuple{Vararg{Int}})), T::Type,
+function TableauRKExplicit(name::Symbol, order::Tuple{Vararg{Int}}, T::Type,
                    a::Matrix, b::Matrix, c::Vector)
-    TableauRKExplicit{name,length(c),T}(order, convert(Matrix{T},a),
+    TableauRKExplicit{name, length(c), T}(order, convert(Matrix{T},a),
                                         convert(Matrix{T},b), convert(Vector{T},c) )
 end
 
@@ -79,7 +77,7 @@ conv_field{T, N}(D, a::Array{T, N}) = convert(Array{D, N}, a)
 function Base.convert{Tnew <: Real, Name, S, T}(::Type{Tnew}, tab::TableauRKExplicit{Name,S,T})
     # Converts the tableau coefficients to the new type Tnew
     newflds = ()
-    @compat for n in fieldnames(tab)
+    for n in fieldnames(tab)
         fld = getfield(tab,n)
         if eltype(fld)==T
             newflds = tuple(newflds..., conv_field(Tnew, fld))

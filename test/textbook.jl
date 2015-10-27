@@ -8,6 +8,7 @@ function test1(t, y)
     return ydot
 end
 
+##TODO: I am not sure about this solution
 function actual_test1(t)
     y = zeros(2)
     y[1] = exp(4.0*t) - 2.0*exp(-t)
@@ -18,5 +19,8 @@ end
 tout = linspace(0, 2, 100)
 sol = ode45(test1, [-1.0, 4.0], tout)
 ##TODO what is the correct way to turn an array of arrays into a matrix?
-actual_sol = hcat([actual_test1(t) for t in tout])
-println(sol.y .- actual_sol)
+actual_sol = hcat([actual_test1(t) for t in tout]...)'
+sol_diff = abs(sol.y .- actual_sol)
+#println(maximum(sol_diff))
+#println(all(sol_diff[:, 1] .< 1e-4))
+#println(all(sol_diff[:, 2] .< 1e-4))
