@@ -101,3 +101,24 @@ currently implemented. But ideally I would like to be able to do:
 How to split up my code so that this works well, and as efficiently as possible
 will be an interesting challenge, even before I do any work looking at multistep
 methods.
+
+## API from `ODE.jl` Discussions
+It seems that the Julia community has been having a lot of back and forth
+trying to solve the interface issue in a general way with little traction. The
+issue seems to be the best way to express:
+
+```jl
+f(t, y)
+f(t, y, y')
+M(t)f(t, y)
+M(t, y)f(t, y)
+```
+
+As problem definitions for basic IVP problems to complex DAE problems. A key
+part of this discussion is how to do this efficiently, but also with a
+convenient syntax. One discussion was to use a `OdeProblem` type that could
+allocate some of the memory and temporary steps used by the solvers for
+efficiency. I need to look this over and see how much of this I care about.
+Also there turns out to be a pure Julia `DASSL` implementation which also has
+iterator support using a coroutine. If I use this I will want to change the
+naming from camelCase to the current Julian way.

@@ -74,12 +74,12 @@ end
 
 conv_field{T, N}(D, a::Array{T, N}) = convert(Array{D, N}, a)
 
-function Base.convert{Tnew <: Real, Name, S, T}(::Type{Tnew}, tab::TableauRKExplicit{Name,S,T})
+function Base.convert{Tnew <: Real, Name, S, T}(::Type{Tnew}, tab::TableauRKExplicit{Name, S, T})
     # Converts the tableau coefficients to the new type Tnew
     newflds = ()
     for n in fieldnames(tab)
-        fld = getfield(tab,n)
-        if eltype(fld)==T
+        fld = getfield(tab, n)
+        if eltype(fld) == T
             newflds = tuple(newflds..., conv_field(Tnew, fld))
         else
             newflds = tuple(newflds..., fld)
@@ -88,10 +88,8 @@ function Base.convert{Tnew <: Real, Name, S, T}(::Type{Tnew}, tab::TableauRKExpl
     TableauRKExplicit{Name, S, Tnew}(newflds...) # TODO: could this be done more generically in a type-stable way?
 end
 
-
 isexplicit(b::TableauRKExplicit) = istril(b.a) # Test whether it's an explicit method
 isadaptive(b::TableauRKExplicit) = size(b.b, 1) == 2
-
 
 ##TODO: Why do I need to always check this? It seems like it is fixed for a given
 ## tableau, couldn't this just be a static boolean field? This seems to be a special
@@ -105,16 +103,16 @@ isFSAL(btab::TableauRKExplicit) = btab.a[end, :] == btab.b[1, :] && btab.c[end] 
 
 # Dormand-Prince https://en.wikipedia.org/wiki/Dormand%E2%80%93Prince_method
 const bt_dopri5 = TableauRKExplicit(:dopri, (5, 4), Float64,
-                     [0          0            0                   0            0      0 0
-                      1/5        0            0                   0            0      0 0
-                      3/40       9/40         0                   0            0      0 0
-                      44/45      -56/15       32/9                0            0      0 0
-                      19372/6561 -25360/2187  64448/6561 -212/729            0      0 0
-                      9017/3168  -355/33      46732/5247   49/176 -5103/18656      0 0
-                      35/384         0            500/1113    125/192  -2187/6784 11/84 0],
-                     [35/384         0     500/1113       125/192      -2187/6784         11/84      0
-                      5179/57600     0     7571/16695     393/640     -92097/339200     187/2100     1/40],
-                     [0, 1/5, 3/10, 4/5, 8/9, 1, 1]
-                     )
+    [0 0 0 0 0 0 0
+     1//5 0 0 0 0 0 0
+     3//40 9//40 0 0 0 0 0
+     44/45 -56//15 32//9 0 0 0 0
+     19372//6561 -25360/2187 64448//6561 -212//729 0 0 0
+     9017//3168 -355//33 46732//5247 49//176 -5103//18656 0 0
+     35//384 0 500//1113 125/192 -2187//6784 11/84 0],
+    [35//384 0 500//1113 125//192 -2187//6784 11//84 0
+     5179//57600 0 7571//16695 393//640 -92097//339200 187//2100 1//40],
+    [0, 1//5, 3//10, 4//5, 8//9, 1, 1]
+)
 
 ##TODO: Add the DOP853 table from the codes DOP853.f from Hairer, Norsett and Wanner (1993)
