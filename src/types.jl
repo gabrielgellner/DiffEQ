@@ -23,6 +23,7 @@ end
 #################################################
 # Settings/Options Type
 #################################################
+#=
 type IVPOptions
     reltol::Float64 #TODO this can also be an array
     abstol::Float64 #TODO this can also be an array
@@ -44,3 +45,4 @@ ivpoptions(;
     initstep = 0.0,
     method = :dopri45
 ) = IVPOptions(reltol, abstol, minstep, maxstep, initstep, method)
+=#
