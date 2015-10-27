@@ -55,18 +55,22 @@ in Julia.
 
 So what would the master function look like:
 
+```jl
 dsolve(model, y0, tspan) # but what would the default solver be, dopri5 I think
 dsolve(model, y0, tspan; method = :dopri5) # symbol version which seems bad, see how `Optim.jl` is moving over to type dispatch
 dsolve(model, y0, tspan; method = Dopri(5, 4))
 dsolve(model, y0, tspan; method = ERK(5, 4))
 dsolve(model, y0, tspan; method = ExplicitRungeKutta(5, 4))
+```
 
 vs
 
+```jl
 ode45(model, y0, tspan)
 ode45dp(model, y0, tspan)
 explicit_rungekutta{5, 4}(model, y0, tspan)
 variable_bdf(model, y0, tspan)
+```
 
 etc
 
@@ -81,5 +85,19 @@ issue is how to deal with the different kinds of solvers, largely from the
 RungeKutta family.
 
 Can I do type dispatch on something like `method = RungeKutta(tableau)`? I think
-I would need to have this be a parametrized type like `method = RungeKutta{tableau}`
+I would need to have this be a parameterized type like `method = RungeKutta{tableau}`
 but I am not sure this is possible.
+
+## Desirable Behavior
+Now I would like it that I could get the following different behavior. If I want
+a specific set of values I get back to solution table `sol` type like I have
+currently implemented. But ideally I would like to be able to do:
+* A step at a time iterator version, where I can change the settings to the
+  integrator, like how I would use a function like this in Fortran.
+* I give a range `[tstart, tstop]` and I get back an object that has the solver
+  stored points, but I use like the `InterpolatingFunction` from Mathematica.
+  That is I have a Hermite interpolation object that I can get any value between
+  `[tstart, tend]`.
+How to split up my code so that this works well, and as efficiently as possible
+will be an interesting challenge, even before I do any work looking at multistep
+methods.
