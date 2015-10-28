@@ -25,7 +25,6 @@ function oderk_adapt{N, S}(
                             # timeout_const steps
 
     ## Initialization
-    #ndim = length(y0)
     t = tspan[1]
     tstart = tspan[1]
     tend = tspan[end]
