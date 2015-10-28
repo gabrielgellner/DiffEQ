@@ -9,9 +9,9 @@ function f(t, y)
     ydot
 end
 
-t = linspace(0.0, 12.0, 10)
+tout = linspace(0.0, 12.0, 10)
 # the matlab version has a vector of absol = [1e-4 1e-4 1e-5]
-sol = ode45(f, [0.0, 1.0, 1.0], t; reltol = 1e-4, abstol = 1e-4)
+sol = aode(Dopri5(f, 3), [0.0, 1.0, 1.0], tout; reltol = 1e-4, abstol = 1e-4)
 
 refsol = [-0.705810884230406, -0.708700436943760, 0.863899310414768]
 

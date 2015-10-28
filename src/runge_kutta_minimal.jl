@@ -6,18 +6,13 @@
 # Adaptive Runge-Kutta methods
 ##############################
 #NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
+##TODO: get rid of the kwargs... and be explicit
+aode(sys::Dopri5, y0, tspan; kwargs...) = oderk_adapt(sys, y0, tspan, bt_dopri5; kwargs...)
 
-## High lever interface, this will change
-#ode21(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk21; kwargs...)
-#ode23(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk23; kwargs...)
-#ode45_fe(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_rk45; kwargs...)
-ode45_dp(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_dopri5; kwargs...)
-# Use Dormand-Prince version of ode45 by default
-const ode45 = ode45_dp
-#ode78(fn, y0, tspan; kwargs...) = oderk_adapt(fn, y0, tspan, bt_feh78; kwargs...)
-
-# This function is the meat of the adaptive solvers.
-function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVector{Float64},
+function oderk_adapt{N, S}(
+                     sys::RungeKuttaSystem,
+                     y0::AbstractVector{Float64},
+                     tspan::AbstractVector{Float64},
                      btab::TableauRKExplicit{N, S};
                      reltol = 1.0e-5,
                      abstol = 1.0e-8,
@@ -25,42 +20,35 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
                      maxstep = abs(tspan[end] - tspan[1])/2.5,
                      initstep = 0.0
                      )
-
-    ##TODO: think about how to get rid of this check. Why not have two types of
-    # tableaus? So I can just have the dispatch deal with this?
-    # Really I don't think I want to support fixed step solvers. I don't see the
-    # reason outside of extremely specific optimizations that I don't see the
-    # value in supporting.
-    #!isadaptive(btab) && error("Can only use this solver with an adaptive RK Butcher table")
-
     # parameters
     order = minimum(btab.order)
     const timeout_const = 5 # after step reduction do not increase step for
                             # timeout_const steps
 
     ## Initialization
-    dof = length(y0)
+    ndim = length(y0)
     t = tspan[1]
     tstart = tspan[1]
     tend = tspan[end]
 
     # work arrays:
-    y = copy(y0)      # y at time tstart
-    ytrial = Array(Float64, dof) # trial solution at time t+dt
-    yerr = Array(Float64, dof) # error of trial solution
+    #y = copy(y0)      # y at time tstart
+    sys.ywork = copy(y0)
+    #ytrial = Array(Float64, ndim) # trial solution at time t+dt
+    #yerr = Array(Float64, ndim) # error of trial solution
     ##TODO doing it this way makes a non contigous data structure on the
     ## rows which is what I am largely using. This can potentially be a real
     ## performance hit
-    ks = Array(Float64, S, dof)
-    ytmp = Array(Float64, dof)
+    #ks = Array(Float64, S, ndim)
+    #ytmp = Array(Float64, ndim)
 
     # output ys
     nsteps_fixed = length(tspan)
-    ys = Array(Float64, nsteps_fixed, dof)
+    ys = Array(Float64, nsteps_fixed, ndim)
     ys[1, :] = y0
 
     # Time
-    dt, tdir, ks[1, :] = hinit(fn, y, tstart, tend, order, reltol, abstol) # sets ks[1, :] = f0
+    dt, tdir, sys.ks[1, :] = hinit(sys.func, sys.ywork, tstart, tend, order, reltol, abstol) # sets ks[1, :] = f0
     if initstep != 0
         dt = sign(initstep) == tdir ? initstep : error("initstep has wrong sign.")
     end
@@ -75,12 +63,12 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
     iter = 2 # the index into tspan and ys
     while true
         # do one step (assumes ks[1, :] == f0)
-        rk_embedded_step!(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab)
+        rk_embedded_step!(sys.ytrial, sys.yerr, sys.ks, sys.ytmp, sys.ywork, sys.func, t, dt, ndim, btab)
         # Check error and find a new step size:
         ##TODO: we call the function with y, ytrial, yerr names, but the function
         ## uses names like x0, xtrial, xerr which is confusing
-        err, newdt, timeout = stepsize_hw92!(dt, tdir, y, ytrial, yerr, order, timeout,
-                                             dof, abstol, reltol, maxstep, norm)
+        err, newdt, timeout = stepsize_hw92!(dt, tdir, sys.ywork, sys.ytrial, sys.yerr, order, timeout,
+                                             ndim, abstol, reltol, maxstep, norm)
 
         if err <= 1.0 # accept step
             # diagnostics
@@ -93,26 +81,23 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
             # Output:
             ##NOTE in `ODE.jl` as they are using array of arrays which means the line
             ## f0 = ks[1] is a view not a copy
-            f0 = sub(ks, 1, :)
+            f0 = sub(sys.ks, 1, :)
             ##FSAL -> First Same As Last, this code seems like it could be set in a btab field instead
             ## of always being recalculated
-            f1 = isFSAL(btab) ? sub(ks, S, :) : fn(t + dt, ytrial)
+            f1 = isFSAL(btab) ? sub(sys.ks, S, :) : fn(t + dt, sys.ytrial)
             # interpolate onto given output points
             while iter - 1 < nsteps_fixed && (tdir*tspan[iter] < tdir*(t + dt) || islaststep) # output at all new times which are < t+dt
-                ##TODO: I do a copy here instead of working in place. This might be
-                ## a source of a major speed loss
-                #hermite_interp!(ys[iter], tspan[iter], t, dt, y, ytrial, f0, f1)
-                #ys[iter, :] = hermite_interp(tspan[iter], t, dt, y, ytrial, f0, f1) # TODO: 3rd order only!
-                hermite_interp!(sub(ys, iter, :), tspan[iter], t, dt, y, ytrial, f0, f1)
+                # TODO: 3rd order only!
+                hermite_interp!(sub(ys, iter, :), tspan[iter], t, dt, sys.ywork, sys.ytrial, f0, f1)
                 iter += 1
             end
-            ks[1, :] = f1 # load ks[1, :] == f0 for next step
+            sys.ks[1, :] = f1 # load ks[1, :] == f0 for next step
 
             # Break if this was the last step:
             islaststep && break
 
             # Swap bindings of y and ytrial, avoids one copy
-            y, ytrial = ytrial, y
+            sys.ywork, sys.ytrial = sys.ytrial, sys.ywork
 
             # Update t to the time at the end of current step:
             t += dt
@@ -136,7 +121,36 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
     return RKOdeSolution(tspan, ys)
 end
 
-function rk_embedded_step!{N, S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab::TableauRKExplicit{N, S})
+# estimator for initial step based on book
+# "Solving Ordinary Differential Equations I" by Hairer et al., p.169
+function hinit(fn, y0, tstart, tend, order, reltol, abstol)
+    # Returns first step, direction of integration and F evaluated at t0
+    tdir = sign(tend - tstart)
+    tdir == 0 && error("Zero time span")
+    tau = max(reltol*norm(y0, Inf), abstol)
+    d0 = norm(y0, Inf)/tau
+    f0 = fn(tstart, y0)
+    d1 = norm(f0, Inf)/tau
+    if d0 < 1e-5 || d1 < 1e-5
+        h0 = 1e-6
+    else
+        h0 = 0.01*(d0/d1)
+    end
+    # perform Euler step
+    x1 = y0 + tdir*h0*f0
+    f1 = fn(tstart + tdir*h0, x1)
+    # estimate second derivative
+    d2 = norm(f1 - f0, Inf)/(tau*h0)
+    if max(d1, d2) <= 1e-15
+        h1 = max(1e-6, 1e-3*h0)
+    else
+        pow = -(2.0 + log10(max(d1, d2)))/(order + 1.0)
+        h1 = 10.0^pow
+    end
+    return tdir*min(100*h0, h1, tdir*(tend - tstart)), tdir, f0
+end
+
+function rk_embedded_step!{N, S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, ndim, btab::TableauRKExplicit{N, S})
     # Does one embedded R-K step updating ytrial, yerr and ks.
     #
     # Assumes that ks[:, 1] is already calculated!
@@ -145,25 +159,25 @@ function rk_embedded_step!{N, S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab
     ##NOTE: currently hard coded to be Float64
     fill!(ytrial, 0.0)
     fill!(yerr, 0.0)
-    for d = 1:dof
+    for d = 1:ndim
         ytrial[d] += btab.b[1, 1]*ks[1, d]
         yerr[d] += btab.b[2 ,1]*ks[1, d]
     end
     for s = 2:S
-        calc_next_k!(ks, ytmp, y, s, fn, t, dt, dof, btab)
-        for d = 1:dof
+        calc_next_k!(ks, ytmp, y, s, fn, t, dt, ndim, btab)
+        for d = 1:ndim
             ytrial[d] += btab.b[1, s]*ks[s, d]
             yerr[d] += btab.b[2, s]*ks[s, d]
         end
     end
-    for d = 1:dof
+    for d = 1:ndim
         yerr[d] = dt*(ytrial[d] - yerr[d])
         ytrial[d] = y[d] + dt*ytrial[d]
     end
 end
 
 function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
-                       timeout, dof, abstol, reltol, maxstep, norm)
+                       timeout, ndim, abstol, reltol, maxstep, norm)
     # Estimates the error and a new step size following Hairer &
     # Wanner 1992, p167 (with some modifications)
     #
@@ -181,7 +195,7 @@ function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
     facmin = 1.0/facmax  # maximal step size decrease. ?
 
     # in-place calculate xerr./tol
-    for d = 1:dof
+    for d = 1:ndim
         # if outside of domain (usually NaN) then make step size smaller by maximum
         isoutofdomain(xtrial[d]) && return 10.0, dt*facmin, timout_after_nan
         xerr[d] = xerr[d]/(abstol + max(norm(x0[d]), norm(xtrial[d]))*reltol) # Eq 4.10
@@ -195,11 +209,11 @@ function stepsize_hw92!(dt, tdir, x0, xtrial, xerr, order,
     return err, tdir*newdt, timeout
 end
 
-function calc_next_k!(ks::Matrix{Float64}, ytmp::Vector{Float64}, y, s, fn, t, dt, dof, btab)
+function calc_next_k!(ks::Matrix{Float64}, ytmp::Vector{Float64}, y, s, fn, t, dt, ndim, btab)
     # Calculates the next ks and puts it into ks[s, :]
     # - ks and ytmp are modified inside this function.
     ytmp[:] = y
-    for ss = 1:(s - 1), d = 1:dof
+    for ss = 1:(s - 1), d = 1:ndim
         ytmp[d] += dt*ks[ss, d]*btab.a[s, ss]
     end
     ks[s, :] = fn(t + btab.c[s]*dt, ytmp)

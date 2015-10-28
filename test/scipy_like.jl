@@ -73,7 +73,7 @@ function simple_oscillator_analytic(t)
 end
 
 tout = linspace(0, 100, 100)
-sol = ode45(simple_oscillator, [1.0, 0.1], tout; abstol = 1e-8, reltol = 1e-8)
+sol = aode(Dopri5(simple_oscillator, 2), [1.0, 0.1], tout; abstol = 1e-8, reltol = 1e-8)
 # I seem to have that if my abstol = 1e-x then my accurate digits is around 1e-(x - 1)
 # I need to check if this makes sense
 ##scipy uses `allclose(sol1, sol1, atol = self.atol, rtol = self.rtol)` which seems
