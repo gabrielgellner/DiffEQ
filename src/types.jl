@@ -31,18 +31,20 @@ end
 abstract AbstractOdeSystem
 abstract RungeKuttaSystem <: AbstractOdeSystem
 
-##TODO: is it worth having a RungeKuttaOdeProblem <: AbstractOdeProblem abstract
-## type to bundle the RK types?
-type Dopri5 <: RungeKuttaSystem
-    ndim::Int
-    func::Function
-    y0::Array{Float64, 1}
-    # maybe this should include the initial_conditions y0? That is really a part of the problem, and it could be changed by sys.y0 = <blah> if needed
+type RKWorkspace
     ks::Array{Float64, 2}
-    ywork::Array{Float64, 1} # this maybe should be called ystart/yinit
+    yinit::Array{Float64, 1}
     ytrial::Array{Float64, 1}
     yerr::Array{Float64, 1}
     ytmp::Array{Float64, 1}
+end
+
+type Dopri5 <: RungeKuttaSystem
+    ##TODO: I shouln't let ndim change
+    ndim::Int
+    func::Function
+    y0::Array{Float64, 1}
+    work::RKWorkspace
 end
 
 function Dopri5(func::Function, y0::Array{Float64, 1})
@@ -54,10 +56,12 @@ function Dopri5(func::Function, y0::Array{Float64, 1})
         ndim, # ndim
         func, # dydt
         y0, # y0
-        Array(Float64, 7, ndim), #ks
-        Array(Float64, ndim), #ywork
-        Array(Float64, ndim), #ytrial
-        Array(Float64, ndim), #yerr
-        Array(Float64, ndim) #ytmp
+        RKWorkspace(
+            Array(Float64, 7, ndim), #ks
+            Array(Float64, ndim), #ywork
+            Array(Float64, ndim), #ytrial
+            Array(Float64, ndim), #yerr
+            Array(Float64, ndim) #ytmp
+        )
     )
 end
