@@ -21,9 +21,14 @@ this function to get the points you need. I have found that using this default
 can be very nice, but is more times than not a bit of a hassle. That being said
 I do like the idea of a version that will return such an object for use.
 
+In truth if the `[tstart, tend]` version is used I should really only return
+the Mathematica like object as it is kind of crazy otherwise (why would I
+possibly want and array of the natural adaptive steps?). Really want I want
+from this form is the dense output.
+
 Also from my days as a Fortran user I really miss the ability to just call the
 the solver for a single step inside a loop. I wonder if Julia is efficient
-enough to do something like this.
+enough to do something like this. (This would be the iterator approach)
 
 ## New API ideas
 Currently we follow the `ODE.jl` versions which is really just a simplified
@@ -122,3 +127,81 @@ efficiency. I need to look this over and see how much of this I care about.
 Also there turns out to be a pure Julia `DASSL` implementation which also has
 iterator support using a coroutine. If I use this I will want to change the
 naming from camelCase to the current Julian way.
+
+### OdeProblem Object
+I wonder if it might work to have a type that can be called with a function
+argument that would build a problem object then you could do delegation on
+the type
+
+```jl
+dsolve(RungeKutta(func, y0), tout)
+dsolve(dopri5(func), y0, tout)
+```
+
+I am not sure what information should be in the object, `y0`, `tout`? Also
+how I would want to name them.
+
+Also the point of this for efficiency is that the function and jacobian
+would work inplace, so you would need a way to specify this
+
+```jl
+dsolve(dopri5!(func!), y0, tout)
+```
+
+my guess would be to have this form for each method type so that I would
+then have the different call signature of
+
+```jl
+func(t, y, ywork)
+```
+
+With this framework (`OdeProblem`) I could allocate the temporary arrays for
+the dopri5 solver so that repeated calls to the solver would not have to
+reallocate. Though for small-med problems I am not sure how much that will
+matter. It also makes the slightly strange issue that `dsolve` would actually
+change things inplace. Also it would seem natural to store the solver
+diagnostics in the `OdeProblem` object, and also in the returned `OdeSolution`
+object which feels odd.
+
+Where this might truly help is if I made the itertor version as I would not have
+the high overhead for repeated, small calls.
+
+Really if I use the `OdeProblem` as a kind of store of the memory needed for
+the solver to run then what I am doing with the solver function is acting like
+a sort of settings object. That is
+
+```jl
+dsolve(dopri5(func), y0, tout; abstol = 1e-5)
+```
+
+etc is really just using the solver call as a way to set the options (hence why
+it might make sense for `yo` and `tout` to be part of the `OdeProblem` though
+I am still not sure).
+
+Also if I go this route I am thinking I will want separate functions for if I
+want an array of points back, a dense interpolating function like object, or
+and iterator. Though I am not sure what names for this would be.
+* aode (array ode)
+* dode (dense ode)
+* iode (itertor ode)
+these names seem dangerously terse. But full spelling it out is clearly too
+long. That being said I kind of like them.
+
+```jl
+aode(dopri5(func), y0, linspace(0, 100, 50); abstol = 1e-5)
+aode(cvode(func), y0 tout; max_order = 10)
+```
+
+and then the code for `aode` would do dispatch on the type of the first
+argument
+
+```jl
+aode(prob::dopri5, y0::Vector, tout::Vector; kwargs{for dopri5}...) = rk_adapt(prob, y0, tout, btab::RKExplicitTableau = bt_dopri5)
+```
+
+This is actually looking really good. But this makes me notice that really I
+will want the problem types to be CapsCase. `Dopri5`, `VODE` (don't really want
+the C as it is not the C code ... as I will port this to pure Julia).
+
+Now if I use the `xode` name then I really won't want to support DDE as these
+are not ODE's as far as I understand, whereas DAE's are.

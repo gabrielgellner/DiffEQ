@@ -28,7 +28,10 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
 
     ##TODO: think about how to get rid of this check. Why not have two types of
     # tableaus? So I can just have the dispatch deal with this?
-    !isadaptive(btab) && error("Can only use this solver with an adaptive RK Butcher table")
+    # Really I don't think I want to support fixed step solvers. I don't see the
+    # reason outside of extremely specific optimizations that I don't see the
+    # value in supporting.
+    #!isadaptive(btab) && error("Can only use this solver with an adaptive RK Butcher table")
 
     # parameters
     order = minimum(btab.order)
