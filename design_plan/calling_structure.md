@@ -219,3 +219,7 @@ the user might much around with the work arrays. Though this should largely
 be harmless it seems ugly to me. maybe I want a subtype `Workspace` that
 contains the memory stuff so the user would need to do `sys.workspace.ks` etc
 which would make it clear that this is not a top level.
+
+Also this allocation of memory will make easy parallel runs harder, as you
+will need to make sure you make copies of each of the system types so that
+they don't conflict with each other.
