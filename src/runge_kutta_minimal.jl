@@ -133,7 +133,7 @@ function oderk_adapt{N, S}(fn, y0::AbstractVector{Float64}, tspan::AbstractVecto
             timeout = timeout_const
         end
     end
-    return RKODESolution(tspan, ys)
+    return RKOdeSolution(tspan, ys)
 end
 
 function rk_embedded_step!{N, S}(ytrial, yerr, ks, ytmp, y, fn, t, dt, dof, btab::TableauRKExplicit{N, S})

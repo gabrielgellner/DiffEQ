@@ -9,10 +9,10 @@ order(b::Tableau) = b.order
 Base.convert{Tnew <: Real}(::Type{Tnew}, tab::Tableau) = error("Define convert method for concrete Tableau types")
 
 ## Solver Output Types
-abstract AbstractODESolution
+abstract AbstractOdeSolution
 
 #TODO: add solver information. Look at what is going on in `Optim.jl`
-type RKODESolution <: AbstractODESolution
+type RKOdeSolution <: AbstractOdeSolution
     # I currently hard code the types as this is the most common case. I can
     # look into generalizing this, but I will be wary of making the code overly
     # complex to do so
