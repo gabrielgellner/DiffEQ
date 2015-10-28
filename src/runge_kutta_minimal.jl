@@ -7,11 +7,10 @@
 ##############################
 #NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
 ##TODO: get rid of the kwargs... and be explicit
-aode(sys::Dopri5, y0, tspan; kwargs...) = oderk_adapt(sys, y0, tspan, bt_dopri5; kwargs...)
+aode(sys::Dopri5, tspan; kwargs...) = oderk_adapt(sys, tspan, bt_dopri5; kwargs...)
 
 function oderk_adapt{N, S}(
                      sys::RungeKuttaSystem,
-                     y0::AbstractVector{Float64},
                      tspan::AbstractVector{Float64},
                      btab::TableauRKExplicit{N, S};
                      reltol = 1.0e-5,
@@ -26,26 +25,18 @@ function oderk_adapt{N, S}(
                             # timeout_const steps
 
     ## Initialization
-    ndim = length(y0)
+    #ndim = length(y0)
     t = tspan[1]
     tstart = tspan[1]
     tend = tspan[end]
 
-    # work arrays:
-    #y = copy(y0)      # y at time tstart
-    sys.ywork = copy(y0)
-    #ytrial = Array(Float64, ndim) # trial solution at time t+dt
-    #yerr = Array(Float64, ndim) # error of trial solution
-    ##TODO doing it this way makes a non contigous data structure on the
-    ## rows which is what I am largely using. This can potentially be a real
-    ## performance hit
-    #ks = Array(Float64, S, ndim)
-    #ytmp = Array(Float64, ndim)
+    # initialize work arrays
+    sys.ywork = copy(sys.y0)
 
     # output ys
     nsteps_fixed = length(tspan)
-    ys = Array(Float64, nsteps_fixed, ndim)
-    ys[1, :] = y0
+    ys = Array(Float64, nsteps_fixed, sys.ndim)
+    ys[1, :] = sys.y0
 
     # Time
     dt, tdir, sys.ks[1, :] = hinit(sys.func, sys.ywork, tstart, tend, order, reltol, abstol) # sets ks[1, :] = f0
@@ -63,12 +54,12 @@ function oderk_adapt{N, S}(
     iter = 2 # the index into tspan and ys
     while true
         # do one step (assumes ks[1, :] == f0)
-        rk_embedded_step!(sys.ytrial, sys.yerr, sys.ks, sys.ytmp, sys.ywork, sys.func, t, dt, ndim, btab)
+        rk_embedded_step!(sys.ytrial, sys.yerr, sys.ks, sys.ytmp, sys.ywork, sys.func, t, dt, sys.ndim, btab)
         # Check error and find a new step size:
         ##TODO: we call the function with y, ytrial, yerr names, but the function
         ## uses names like x0, xtrial, xerr which is confusing
         err, newdt, timeout = stepsize_hw92!(dt, tdir, sys.ywork, sys.ytrial, sys.yerr, order, timeout,
-                                             ndim, abstol, reltol, maxstep, norm)
+                                             sys.ndim, abstol, reltol, maxstep, norm)
 
         if err <= 1.0 # accept step
             # diagnostics

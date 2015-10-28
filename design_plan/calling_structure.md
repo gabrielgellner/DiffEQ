@@ -205,3 +205,17 @@ the C as it is not the C code ... as I will port this to pure Julia).
 
 Now if I use the `xode` name then I really won't want to support DDE as these
 are not ODE's as far as I understand, whereas DAE's are.
+
+### OdeProblem -> OdeSystem
+I have decided to call this an `OdeSystem` as this gives the nice short variable
+name `sys` or `osys` vs `prob` which I don't really.
+
+Now currently all the fields are top level but I am toying with the idea of
+adding the `y0` initial value to the system, thereby solving the `ndim` issue as
+well as being a bit closer to containing all the problem/system information.
+With this in mind I see that doing things like `sys.y0 = [blah]` could be common
+what I am scared of is if changing the system fields like this is common that
+the user might much around with the work arrays. Though this should largely
+be harmless it seems ugly to me. maybe I want a subtype `Workspace` that
+contains the memory stuff so the user would need to do `sys.workspace.ks` etc
+which would make it clear that this is not a top level.

@@ -34,7 +34,9 @@ abstract RungeKuttaSystem <: AbstractOdeSystem
 ##TODO: is it worth having a RungeKuttaOdeProblem <: AbstractOdeProblem abstract
 ## type to bundle the RK types?
 type Dopri5 <: RungeKuttaSystem
+    ndim::Int
     func::Function
+    y0::Array{Float64, 1}
     # maybe this should include the initial_conditions y0? That is really a part of the problem, and it could be changed by sys.y0 = <blah> if needed
     ks::Array{Float64, 2}
     ywork::Array{Float64, 1} # this maybe should be called ystart/yinit
@@ -43,23 +45,19 @@ type Dopri5 <: RungeKuttaSystem
     ytmp::Array{Float64, 1}
 end
 
-##TODO currently I pass the ndim, but it would be nice to also be able
-## to pass an array of the state variable names, like [:y1, :y2] and
-## this might be able to be used to give meaningful names to the `OdeSolution`
-## in some ways this is similar to how Mathematica works, though I would need
-## to think if I want to have th `x` variable included as well (so I could,
-## for example call it `t`, though this would mean I would have the
-## `ndim = length(statearray) - 1` if I chose this path.
-function Dopri5(func::Function, ndim::Int)
+function Dopri5(func::Function, y0::Array{Float64, 1})
     #I have hard coded the stages into this `7` I think this makes the most
     #sense as each RK type will need to have its own constructor like this,
     #so a parametric type isn't needed.
+    ndim = length(y0)
     Dopri5(
+        ndim, # ndim
         func, # dydt
+        y0, # y0
         Array(Float64, 7, ndim), #ks
         Array(Float64, ndim), #ywork
         Array(Float64, ndim), #ytrial
         Array(Float64, ndim), #yerr
-        Array(Float64, ndim)  #ytmp
+        Array(Float64, ndim) #ytmp
     )
 end
