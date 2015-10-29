@@ -41,7 +41,7 @@ end
 
 type Dopri5 <: RungeKuttaSystem
     ##TODO: I shouln't let ndim change
-    ndim::Int
+    ndim::Int ##TODO this should be in workspace, really things in the top level should be fair game to change
     func::Function
     y0::Array{Float64, 1}
     work::RKWorkspace

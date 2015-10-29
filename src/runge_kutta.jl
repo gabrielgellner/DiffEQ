@@ -8,6 +8,7 @@
 #NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
 ##TODO: get rid of the kwargs... and be explicit
 aode(sys::Dopri5, tspan; kwargs...) = rksolver(sys, tspan, bt_dopri5; kwargs...)
+dode(sys::Dopri5, tspan; kwargs...) = rksolver_dense(sys, tspan, bt_dopri5; kwargs...)
 
 function rksolver{N, S}(sys::RungeKuttaSystem,
                         tspan::AbstractVector{Float64},
@@ -38,6 +39,104 @@ function rksolver{N, S}(sys::RungeKuttaSystem,
 
     # Time
     dt, tdir, sys.work.ks[:, 1] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = f0
+    if initstep != 0
+        dt = sign(initstep) == tdir ? initstep : error("initstep has wrong sign.")
+    end
+    # Diagnostics
+    dts = Float64[]
+    errs = Float64[]
+    steps = [0, 0]  # [accepted, rejected]
+
+    ## Integration loop
+    islaststep = abs(t + dt - tend) <= eps(tend) ? true : false
+    timeout = 0 # for step-control
+    iter = 2 # the index into tspan and ys
+    while true
+        # do one step (assumes ks[1, :] == f0)
+        rk_embedded_step!(sys, t, dt, btab)
+        # Check error and find a new step size:
+        err, newdt, timeout = stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, norm)
+
+        if err <= 1.0 # accept step
+            # diagnostics
+            steps[1] += 1
+            ##TODO: as I have removed variable output size I likely don't need
+            ## to grow these
+            push!(dts, dt)
+            push!(errs, err)
+
+            # Output:
+            f0 = sub(sys.work.ks, :, 1)
+            ##FSAL -> First Same as Last -- a Dopri special
+            f1 = isFSAL(btab) ? sub(sys.work.ks, :, S) : fn(t + dt, sys.work.ytrial)
+            # interpolate onto given output points
+            while iter - 1 < nsteps_fixed && (tdir*tspan[iter] < tdir*(t + dt) || islaststep) # output at all new times which are < t+dt
+                # TODO: 3rd order only!
+                hermite_interp!(sub(ys, iter, :), tspan[iter], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
+                iter += 1
+            end
+            sys.work.ks[:, 1] = f1 # load ks[:, 1] == f0 for next step
+
+            # Break if this was the last step:
+            islaststep && break
+
+            # Swap bindings of yinit and ytrial, avoids one copy
+            sys.work.yinit, sys.work.ytrial = sys.work.ytrial, sys.work.yinit
+
+            # Update t to the time at the end of current step:
+            t += dt
+            dt = newdt
+
+            # Hit end point exactly if next step within 1% of end:
+            if tdir*(t + dt*1.01) >= tdir*tend
+                dt = tend - t
+                islaststep = true # next step is the last, if it succeeds
+            end
+        elseif abs(newdt) < minstep  # minimum step size reached, break
+            println("Warning: dt < minstep.  Stopping.")
+            break
+        else # redo step with smaller dt
+            islaststep = false
+            steps[2] += 1
+            dt = newdt
+            timeout = timeout_const
+        end
+    end
+    return RKOdeSolution(tspan, ys)
+end
+
+function rksolver_dense{N, S}(sys::RungeKuttaSystem,
+                        tspan::AbstractVector{Float64},
+                        btab::TableauRKExplicit{N, S};
+                        reltol = 1.0e-5,
+                        abstol = 1.0e-8,
+                        minstep = abs(tspan[end] - tspan[1])/1e18,
+                        maxstep = abs(tspan[end] - tspan[1])/2.5,
+                        initstep = 0.0
+                        )
+    # parameters
+    order = minimum(btab.order)
+    const timeout_const = 5 # after step reduction do not increase step for
+                            # timeout_const steps
+
+    ## Initialization
+    if length(tspan) > 2
+        error("Dense output requires tspan to be two points (tstart, tend).")
+    end
+    t = tspan[1]
+    tstart = tspan[1]
+    tend = tspan[end]
+
+    # initialize work arrays
+    sys.work.yinit = copy(sys.y0)
+
+    # output ys
+    nsteps_fixed = length(tspan)
+    ys = Array(Float64, nsteps_fixed, sys.ndim)
+    ys[1, :] = sys.y0
+
+    # Time
+    dt, tdir, sys.work.ks[:, 1] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = func(y0)
     if initstep != 0
         dt = sign(initstep) == tdir ? initstep : error("initstep has wrong sign.")
     end
@@ -104,7 +203,6 @@ function rksolver{N, S}(sys::RungeKuttaSystem,
             timeout = timeout_const
         end
     end
-    return RKOdeSolution(tspan, ys)
 end
 
 # estimator for initial step based on book
