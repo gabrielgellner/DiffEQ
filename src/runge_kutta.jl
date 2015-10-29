@@ -7,10 +7,10 @@
 ##############################
 #NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
 ##TODO: get rid of the kwargs... and be explicit
-aode(sys::Dopri5, tspan; kwargs...) = rksolver(sys, tspan, bt_dopri5; kwargs...)
+aode(sys::Dopri5, tspan; kwargs...) = rksolver_array(sys, tspan, bt_dopri5; kwargs...)
 dode(sys::Dopri5, tspan; kwargs...) = rksolver_dense(sys, tspan, bt_dopri5; kwargs...)
 
-function rksolver{N, S}(sys::RungeKuttaSystem,
+function rksolver_array{N, S}(sys::RungeKuttaSystem,
                         tspan::AbstractVector{Float64},
                         btab::TableauRKExplicit{N, S};
                         reltol = 1.0e-5,
@@ -128,14 +128,32 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
     t = tspan[1]
     tstart = tspan[1]
     tend = tspan[end]
+    #################################################################
+    # Different than rksolver_array
+    #################################################################
+    ##TODO: it seems like `ODE.jl` modifies the tspan that is passed in which
+    ## feels wrong to me. Check this.
+    tout = [copy(tstart)]
+    ################################################################
+    # end different from rksolver_array
+    ################################################################
 
     # initialize work arrays
     sys.work.yinit = copy(sys.y0)
 
-    # output ys
-    nsteps_fixed = length(tspan)
-    ys = Array(Float64, nsteps_fixed, sys.ndim)
-    ys[1, :] = sys.y0
+    ################################################################
+    # Different from rksolver_array
+    ################################################################
+    # output ts and ys
+    nsteps_fixed = length(tout) # these are always output
+    tspan_fixed = tout
+    iter_fixed = 2 # index into tspan_fixed
+    # ys is an array of arrays so that it can grow as needed, this will be
+    # converted to an array at output
+    ys = Array{Float64, 1}[copy(sys.y0)]
+    ################################################################
+    # end difference
+    ################################################################
 
     # Time
     dt, tdir, sys.work.ks[:, 1] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = func(y0)
@@ -150,7 +168,7 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
     ## Integration loop
     islaststep = abs(t + dt - tend) <= eps(tend) ? true : false
     timeout = 0 # for step-control
-    iter = 2 # the index into tspan and ys
+    iter = 2 # the index into tout and ys
     while true
         # do one step (assumes ks[1, :] == f0)
         rk_embedded_step!(sys, t, dt, btab)
@@ -173,11 +191,35 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
             ## of always being recalculated
             f1 = isFSAL(btab) ? sub(sys.work.ks, :, S) : fn(t + dt, sys.work.ytrial)
             # interpolate onto given output points
-            while iter - 1 < nsteps_fixed && (tdir*tspan[iter] < tdir*(t + dt) || islaststep) # output at all new times which are < t+dt
-                # TODO: 3rd order only!
-                hermite_interp!(sub(ys, iter, :), tspan[iter], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
+
+            ###############################################################
+            # different from the rksolver_array version
+            # I should be able to therefore abstract this out in a function
+            # and then really have two much smaller functions.
+            #
+            # I also need to extra/different parameters
+            # * tspan_fixed::Array
+            # * iter_fixed::Int
+            # * index_or_push!() to grow the output array ys which is different from the ys in the array version
+            ###############################################################
+            # first interpolate onto given output points (TODO: don't do this! only return solver steps)
+            # I really only need to do this for the last point (tend) otherwise
+            # I can skip this loop.
+            while iter_fixed - 1 < nsteps_fixed && tdir*t < tdir*tspan_fixed[iter_fixed] < tdir*(t + dt) # output at all new times which are < t+dt
+                yout = hermite_interp(tspan_fixed[iter_fixed], t, dt, y, ytrial, f0, f1)
+                push!(ys, yout) # TODO: 3rd order only!
+                push!(tout, tspan_fixed[iter_fixed])
+                iter_fixed += 1
                 iter += 1
             end
+            # but also output every step taken
+            push!(ys, deepcopy(sys.work.ytrial))
+            push!(tout, t + dt)
+            iter += 1
+            ##############################################################
+            # End difference from rksolver_array
+            ##############################################################
+
             sys.work.ks[:, 1] = f1 # load ks[:, 1] == f0 for next step
 
             # Break if this was the last step:
@@ -205,6 +247,15 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
             timeout = timeout_const
         end
     end
+
+    ##################################################
+    # Different from rksolver_array
+    ##################################################
+    ##TODO: return an interpolating function
+    return tout, ys
+    ##################################################
+    # end difference from rksolver_array
+    ##################################################
 end
 
 # estimator for initial step based on book
