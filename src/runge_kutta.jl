@@ -37,7 +37,7 @@ function rksolver{N, S}(sys::RungeKuttaSystem,
     ys[1, :] = sys.y0
 
     # Time
-    dt, tdir, sys.work.ks[1, :] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[1, :] = f0
+    dt, tdir, sys.work.ks[:, 1] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = f0
     if initstep != 0
         dt = sign(initstep) == tdir ? initstep : error("initstep has wrong sign.")
     end
@@ -67,17 +67,17 @@ function rksolver{N, S}(sys::RungeKuttaSystem,
             # Output:
             ##NOTE in `ODE.jl` as they are using array of arrays which means the line
             ## f0 = ks[1] is a view not a copy
-            f0 = sub(sys.work.ks, 1, :)
+            f0 = sub(sys.work.ks, :, 1)
             ##FSAL -> First Same As Last, this code seems like it could be set in a btab field instead
             ## of always being recalculated
-            f1 = isFSAL(btab) ? sub(sys.work.ks, S, :) : fn(t + dt, sys.work.ytrial)
+            f1 = isFSAL(btab) ? sub(sys.work.ks, :, S) : fn(t + dt, sys.work.ytrial)
             # interpolate onto given output points
             while iter - 1 < nsteps_fixed && (tdir*tspan[iter] < tdir*(t + dt) || islaststep) # output at all new times which are < t+dt
                 # TODO: 3rd order only!
                 hermite_interp!(sub(ys, iter, :), tspan[iter], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
                 iter += 1
             end
-            sys.work.ks[1, :] = f1 # load ks[1, :] == f0 for next step
+            sys.work.ks[:, 1] = f1 # load ks[:, 1] == f0 for next step
 
             # Break if this was the last step:
             islaststep && break
@@ -139,21 +139,21 @@ end
 function rk_embedded_step!{N, S}(sys, t, dt, btab::TableauRKExplicit{N, S})
     # Does one embedded R-K step updating ytrial, yerr and ks.
     #
-    # Assumes that work.ks[:, 1] is already calculated!
+    # Assumes that work.ks[1, :] is already calculated!
     #
     # Modifies work.ytrial, work.yerr, work.ks, and work.ytmp
     ##NOTE: currently hard coded to be Float64
     fill!(sys.work.ytrial, 0.0)
     fill!(sys.work.yerr, 0.0)
     for d = 1:sys.ndim
-        sys.work.ytrial[d] += btab.b[1, 1]*sys.work.ks[1, d]
-        sys.work.yerr[d] += btab.b[2 ,1]*sys.work.ks[1, d]
+        sys.work.ytrial[d] += btab.b[1, 1]*sys.work.ks[d, 1]
+        sys.work.yerr[d] += btab.b[2 ,1]*sys.work.ks[d, 1]
     end
     for s = 2:S
         calc_next_k!(sys, s, t, dt, btab)
         for d = 1:sys.ndim
-            sys.work.ytrial[d] += btab.b[1, s]*sys.work.ks[s, d]
-            sys.work.yerr[d] += btab.b[2, s]*sys.work.ks[s, d]
+            sys.work.ytrial[d] += btab.b[1, s]*sys.work.ks[d, s]
+            sys.work.yerr[d] += btab.b[2, s]*sys.work.ks[d, s]
         end
     end
     for d = 1:sys.ndim
@@ -199,8 +199,8 @@ function calc_next_k!(sys, s, t, dt, btab)
     # - ks and ytmp are modified inside this function.
     sys.work.ytmp[:] = sys.work.yinit
     for ss = 1:(s - 1), d = 1:sys.ndim
-        sys.work.ytmp[d] += dt*sys.work.ks[ss, d]*btab.a[s, ss]
+        sys.work.ytmp[d] += dt*sys.work.ks[d, ss]*btab.a[s, ss]
     end
-    sys.work.ks[s, :] = sys.func(t + btab.c[s]*dt, sys.work.ytmp)
+    sys.work.ks[:, s] = sys.func(t + btab.c[s]*dt, sys.work.ytmp)
     nothing
 end

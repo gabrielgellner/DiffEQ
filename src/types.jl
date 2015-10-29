@@ -57,7 +57,7 @@ function Dopri5(func::Function, y0::Array{Float64, 1})
         func, # dydt
         y0, # y0
         RKWorkspace(
-            Array(Float64, 7, ndim), #ks
+            Array(Float64, ndim, 7), #ks
             Array(Float64, ndim), #ywork
             Array(Float64, ndim), #ytrial
             Array(Float64, ndim), #yerr
