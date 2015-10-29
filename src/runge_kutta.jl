@@ -7,18 +7,17 @@
 ##############################
 #NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
 ##TODO: get rid of the kwargs... and be explicit
-aode(sys::Dopri5, tspan; kwargs...) = oderk_adapt(sys, tspan, bt_dopri5; kwargs...)
+aode(sys::Dopri5, tspan; kwargs...) = rksolver(sys, tspan, bt_dopri5; kwargs...)
 
-function oderk_adapt{N, S}(
-                     sys::RungeKuttaSystem,
-                     tspan::AbstractVector{Float64},
-                     btab::TableauRKExplicit{N, S};
-                     reltol = 1.0e-5,
-                     abstol = 1.0e-8,
-                     minstep = abs(tspan[end] - tspan[1])/1e18,
-                     maxstep = abs(tspan[end] - tspan[1])/2.5,
-                     initstep = 0.0
-                     )
+function rksolver{N, S}(sys::RungeKuttaSystem,
+                        tspan::AbstractVector{Float64},
+                        btab::TableauRKExplicit{N, S};
+                        reltol = 1.0e-5,
+                        abstol = 1.0e-8,
+                        minstep = abs(tspan[end] - tspan[1])/1e18,
+                        maxstep = abs(tspan[end] - tspan[1])/2.5,
+                        initstep = 0.0
+                        )
     # parameters
     order = minimum(btab.order)
     const timeout_const = 5 # after step reduction do not increase step for

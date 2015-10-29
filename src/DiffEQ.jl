@@ -11,6 +11,6 @@ export Dopri5
 include("types.jl")
 include("runge_kutta_tableaus.jl")
 include("utils.jl")
-include("runge_kutta_minimal.jl")
+include("runge_kutta.jl")
 
-end # module
+end
