@@ -34,8 +34,10 @@ function rksolver{N, S}(sys::RungeKuttaSystem,
 
     # output ys
     nsteps_fixed = length(tspan)
-    ys = Array(Float64, nsteps_fixed, sys.ndim)
-    ys[1, :] = sys.y0
+    ##Note: it is more column major to think of an array of points joined along
+    ## columns. When returned it must be transposed.
+    ys = Array(Float64, sys.ndim, nsteps_fixed)
+    ys[:, 1] = sys.y0
 
     # Time
     dt, tdir, sys.work.ks[:, 1] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = f0
@@ -72,7 +74,7 @@ function rksolver{N, S}(sys::RungeKuttaSystem,
             # interpolate onto given output points
             while iter - 1 < nsteps_fixed && (tdir*tspan[iter] < tdir*(t + dt) || islaststep) # output at all new times which are < t+dt
                 # TODO: 3rd order only!
-                hermite_interp!(sub(ys, iter, :), tspan[iter], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
+                hermite_interp!(sub(ys, :, iter), tspan[iter], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
                 iter += 1
             end
             sys.work.ks[:, 1] = f1 # load ks[:, 1] == f0 for next step
@@ -102,7 +104,7 @@ function rksolver{N, S}(sys::RungeKuttaSystem,
             timeout = timeout_const
         end
     end
-    return RKOdeSolution(tspan, ys)
+    return RKOdeSolution(tspan, ys')
 end
 
 function rksolver_dense{N, S}(sys::RungeKuttaSystem,
