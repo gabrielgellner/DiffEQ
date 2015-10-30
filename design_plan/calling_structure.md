@@ -35,6 +35,9 @@ Currently we follow the `ODE.jl` versions which is really just a simplified
 version of Matlab's api. One thing that might be worth doing is making a
 settings interface. Matlab uses `odeset` to do this. For Julia we would want
 to do this with a custom type.
+### Decision
+This is actually not a really good idea. It does little I have chosen instead
+to use a `OdeSystem` object to do the dispatch.
 
 ### Settings
 Things that I need:
