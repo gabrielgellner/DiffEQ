@@ -32,6 +32,9 @@ function getindex(sol::DenseOdeSolution, xval::Float64)
     xr = searchsorted(sol.xvals, xval)
     i1 = xr.stop
     i2 = xr.start
+    # if both are the same we are on a knot point, just return it
+    i2 - i1 == 0 && return sol.yvals[i1, :]
+    # otherwise carry out the interpolation
     dt = sol.xvals[i2] - sol.xvals[i1]
     yout = hermite_interp(xval, sol.xvals[i1], dt, sol.yvals[i1, :], sol.yvals[i2, :], sol.fvals[i1, :], sol.fvals[i2, :])
     return yout
