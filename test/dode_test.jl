@@ -10,14 +10,9 @@ function f(t, y)
 end
 
 # the matlab version has a vector of absol = [1e-4 1e-4 1e-5]
-tout, sol = dode(Dopri5(f, [0.0, 1.0, 1.0]), [0.0, 12.0]; reltol = 1e-4, abstol = 1e-4)
+dsol = dode(Dopri5(f, [0.0, 1.0, 1.0]), [0.0, 12.0]; reltol = 1e-4, abstol = 1e-4)
 
-println("tout")
-println(tout)
-println("sol")
-println(sol)
-println("size")
-println(size(tout), size(sol))
+println(dsol[11.999999])
 
 refsol = [-0.705810884230406, -0.708700436943760, 0.863899310414768]
 

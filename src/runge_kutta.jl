@@ -151,6 +151,7 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
     # ys is an array of arrays so that it can grow as needed, this will be
     # converted to an array at output
     ys = Array{Float64, 1}[copy(sys.y0)]
+    fs = Array{Float64, 1}[sys.func(tstart, sys.y0)]
     ################################################################
     # end difference
     ################################################################
@@ -215,6 +216,8 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
             # but also output every step taken
             push!(ys, deepcopy(sys.work.ytrial))
             push!(tout, t + dt)
+            # Also save the derivatives for the hermite interpolation
+            push!(fs, f1) # ys is the right point so take f1
             iter += 1
             ##############################################################
             # End difference from rksolver_array
@@ -252,7 +255,7 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
     # Different from rksolver_array
     ##################################################
     ##TODO: return an interpolating function
-    return tout, ys
+    return DenseOdeSolution(tout, hcat(ys...)', hcat(fs...)')
     ##################################################
     # end difference from rksolver_array
     ##################################################
