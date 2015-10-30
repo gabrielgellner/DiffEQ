@@ -22,11 +22,7 @@ function DenseOdeSolution(xvals::Array{Float64, 1}, yvals::Array{Float64, 2}, fv
 end
 
 function call(sol::DenseOdeSolution, xval::Float64)
-    # this looks like it supports vector arguments ... need to think about supporting this
-    ((xval .< sol.xvals[1]) | (xval .> sol.xvals[end])) && throw(ArgumentError("Outside of Range"))
-    ##TODO: I need to deal with when the endpoints are passed in ie xval == sol.xvals[1] or xol.xvals[end]
-    ## really I just need to return the correpsonding yvals, also I need to see what happens at each
-    ## of the knot points
+    ((xval < sol.xvals[1]) | (xval > sol.xvals[end])) && throw(ArgumentError("Outside of Range"))
     xr = searchsorted(sol.xvals, xval)
     i1 = xr.stop
     i2 = xr.start
@@ -37,3 +33,5 @@ function call(sol::DenseOdeSolution, xval::Float64)
     yout = hermite_interp(xval, sol.xvals[i1], dt, sol.yvals[i1, :], sol.yvals[i2, :], sol.fvals[i1, :], sol.fvals[i2, :])
     return yout
 end
+
+call(sol::DenseOdeSolution, xvals::AbstractArray{Float64}) = vcat([sol(xval) for xval in xvals]...) # return a table

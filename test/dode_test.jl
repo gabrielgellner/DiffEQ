@@ -13,6 +13,7 @@ end
 dsol = dode(Dopri5(f, [0.0, 1.0, 1.0]), [0.0, 12.0]; reltol = 1e-4, abstol = 1e-4)
 
 println(dsol(12.0))
+println(dsol(linspace(0.0, 12.0, 10)))
 
 refsol = [-0.705810884230406, -0.708700436943760, 0.863899310414768]
 
