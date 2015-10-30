@@ -1,4 +1,4 @@
-import Base.getindex
+import Base.call
 
 ## This file implements a basic dense output type using the Hermite
 ## interpolation that is related to the underlying solver interface of things
@@ -21,9 +21,7 @@ function DenseOdeSolution(xvals::Array{Float64, 1}, yvals::Array{Float64, 2}, fv
     DenseOdeSolution(size(yvals, 2), 3, xvals, yvals, fvals)
 end
 
-##TODO it is really not actually clear to me that using getindex is the right thing to do
-## likely I should use call instead as this is really a function not an indexing issue
-function getindex(sol::DenseOdeSolution, xval::Float64)
+function call(sol::DenseOdeSolution, xval::Float64)
     # this looks like it supports vector arguments ... need to think about supporting this
     ((xval .< sol.xvals[1]) | (xval .> sol.xvals[end])) && throw(ArgumentError("Outside of Range"))
     ##TODO: I need to deal with when the endpoints are passed in ie xval == sol.xvals[1] or xol.xvals[end]
