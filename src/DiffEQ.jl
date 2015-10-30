@@ -9,6 +9,7 @@ export Dopri5
 #TODO: So I am doing all the package import logic in this file, which feels
 # super ugly me, need to see if there is a better way
 include("types.jl")
+include("dense_output.jl")
 include("runge_kutta_tableaus.jl")
 include("utils.jl")
 include("runge_kutta.jl")
