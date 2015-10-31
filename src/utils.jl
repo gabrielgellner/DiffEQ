@@ -28,35 +28,6 @@ function hermite_interp(tquery, t, dt, y0, y1, f0, f1)
     return y
 end
 
-# estimator for initial step based on book
-# "Solving Ordinary Differential Equations I" by Hairer et al., p.169
-function hinit(fn, x0, t0, tend, p, reltol, abstol)
-    # Returns first step, direction of integration and F evaluated at t0
-    tdir = sign(tend - t0)
-    tdir == 0 && error("Zero time span")
-    tau = max(reltol*norm(x0, Inf), abstol)
-    d0 = norm(x0, Inf)/tau
-    f0 = fn(t0, x0)
-    d1 = norm(f0, Inf)/tau
-    if d0 < 1e-5 || d1 < 1e-5
-        h0 = 1e-6
-    else
-        h0 = 0.01*(d0/d1)
-    end
-    # perform Euler step
-    x1 = x0 + tdir*h0*f0
-    f1 = fn(t0 + tdir*h0, x1)
-    # estimate second derivative
-    d2 = norm(f1 - f0, Inf)/(tau*h0)
-    if max(d1, d2) <= 1e-15
-        h1 = max(1e-6, 1e-3*h0)
-    else
-        pow = -(2.0 + log10(max(d1, d2)))/(p + 1.0)
-        h1 = 10.0^pow
-    end
-    return tdir*min(100*h0, h1, tdir*(tend - t0)), tdir, f0
-end
-
 # isoutofdomain takes the state and returns true if state is outside
 # of the allowed domain.  Used in adaptive step-control.
 isoutofdomain(x) = isnan(x)

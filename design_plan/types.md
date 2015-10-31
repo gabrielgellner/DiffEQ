@@ -66,4 +66,8 @@ The options for `NDSolve` are:
 For output Matlab either returns arrays (t, y) with the solutions
 (optional `(t, y, te, ye, ie)` for event detections) or it gives back a `struct`
 with default fields: `sol.x`, `sol.y`, `sol.solver::SolverName`.
-I personally prefer the sturct solution which I will want to emulate.
+I personally prefer the `struct` solution which I will want to emulate. What
+is strange is the naming -- which currently I have emulated. The input is `tspan`
+and when doing the array unpacking we have `t, y` but in we have `sol.x` for the
+`struct` version. I should likely make this consistent and call it `sol.t` or
+have `tspan` be `xvals` or something.
