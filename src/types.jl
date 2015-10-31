@@ -37,6 +37,7 @@ type RKWorkspace
     ytrial::Array{Float64, 1}
     yerr::Array{Float64, 1}
     ytmp::Array{Float64, 1}
+    out_i::Int # used for fixed size output ##TODO think of a better way
 end
 
 type Dopri5 <: RungeKuttaSystem
@@ -61,7 +62,8 @@ function Dopri5(func::Function, y0::Array{Float64, 1})
             Array(Float64, ndim), #ywork
             Array(Float64, ndim), #ytrial
             Array(Float64, ndim), #yerr
-            Array(Float64, ndim) #ytmp
+            Array(Float64, ndim), #ytmp
+            0 # out_i
         )
     )
 end

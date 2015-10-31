@@ -21,8 +21,6 @@ function rksolver_array{N, S}(sys::RungeKuttaSystem,
                         )
     # parameters
     order = minimum(btab.order)
-    const timeout_const = 5 # after step reduction do not increase step for
-                            # timeout_const steps
 
     ## Initialization
     t = tspan[1]
@@ -44,66 +42,10 @@ function rksolver_array{N, S}(sys::RungeKuttaSystem,
     if initstep != 0
         dt = sign(initstep) == tdir ? initstep : error("initstep has wrong sign.")
     end
-    # Diagnostics
-    dts = Float64[]
-    errs = Float64[]
-    steps = [0, 0]  # [accepted, rejected]
 
     ## Integration loop
-    islaststep = abs(t + dt - tend) <= eps(tend) ? true : false
-    timeout = 0 # for step-control
-    iter = 2 # the index into tspan and ys
-    while true
-        # do one step (assumes ks[1, :] == f0)
-        rk_embedded_step!(sys, t, dt, btab)
-        # Check error and find a new step size:
-        err, newdt, timeout = stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, norm)
+    dts, errs, steps = rk_stepper!(sys, t, dt, tdir, tend, tspan, ys, [], btab, order, abstol, reltol, minstep, maxstep, norm, rk_array_output!)
 
-        if err <= 1.0 # accept step
-            # diagnostics
-            steps[1] += 1
-            ##TODO: as I have removed variable output size I likely don't need
-            ## to grow these
-            push!(dts, dt)
-            push!(errs, err)
-
-            # Output:
-            f0 = sub(sys.work.ks, :, 1)
-            ##FSAL -> First Same as Last -- a Dopri special
-            f1 = isFSAL(btab) ? sub(sys.work.ks, :, S) : fn(t + dt, sys.work.ytrial)
-            # interpolate onto given output points
-            while iter - 1 < nsteps_fixed && (tdir*tspan[iter] < tdir*(t + dt) || islaststep) # output at all new times which are < t+dt
-                # TODO: 3rd order only!
-                hermite_interp!(sub(ys, :, iter), tspan[iter], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
-                iter += 1
-            end
-            sys.work.ks[:, 1] = f1 # load ks[:, 1] == f0 for next step
-
-            # Break if this was the last step:
-            islaststep && break
-
-            # Swap bindings of yinit and ytrial, avoids one copy
-            sys.work.yinit, sys.work.ytrial = sys.work.ytrial, sys.work.yinit
-
-            # Update t to the time at the end of current step:
-            t += dt
-            dt = newdt
-
-            # Hit end point exactly if next step within 1% of end:
-            if tdir*(t + dt*1.01) >= tdir*tend
-                dt = tend - t
-                islaststep = true # next step is the last, if it succeeds
-            end
-        elseif abs(newdt) < minstep  # minimum step size reached, break
-            println("Warning: dt < minstep.  Stopping.")
-            break
-        else # redo step with smaller dt
-            islaststep = false
-            steps[2] += 1
-            dt = newdt
-            timeout = timeout_const
-        end
-    end
     return RKOdeSolution(tspan, ys')
 end
 
@@ -117,9 +59,7 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
                         initstep = 0.0
                         )
     # parameters
-    order = minimum(btab.order)
-    const timeout_const = 5 # after step reduction do not increase step for
-                            # timeout_const steps
+    order = minimum(btab.order) # it might be worth adding this as a field to the btab
 
     ## Initialization
     if length(tspan) > 2
@@ -128,137 +68,28 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
     t = tspan[1]
     tstart = tspan[1]
     tend = tspan[end]
-    #################################################################
-    # Different than rksolver_array
-    #################################################################
-    ##TODO: it seems like `ODE.jl` modifies the tspan that is passed in which
-    ## feels wrong to me. Check this.
     tout = [copy(tstart)]
-    ################################################################
-    # end different from rksolver_array
-    ################################################################
 
     # initialize work arrays
     sys.work.yinit = copy(sys.y0)
 
-    ################################################################
-    # Different from rksolver_array
-    ################################################################
-    # output ts and ys
-    nsteps_fixed = length(tout) # these are always output
-    tspan_fixed = tout
-    iter_fixed = 2 # index into tspan_fixed
     # ys is an array of arrays so that it can grow as needed, this will be
-    # converted to an array at output
+    # converted to an array (table: nsteps x ndim array) at output
     ys = Array{Float64, 1}[copy(sys.y0)]
     fs = Array{Float64, 1}[sys.func(tstart, sys.y0)]
-    ################################################################
-    # end difference
-    ################################################################
 
     # Time
     dt, tdir, sys.work.ks[:, 1] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = func(y0)
     if initstep != 0
         dt = sign(initstep) == tdir ? initstep : error("initstep has wrong sign.")
     end
-    # Diagnostics
-    dts = Float64[]
-    errs = Float64[]
-    steps = [0, 0]  # [accepted, rejected]
 
-    ## Integration loop
-    islaststep = abs(t + dt - tend) <= eps(tend) ? true : false
-    timeout = 0 # for step-control
-    iter = 2 # the index into tout and ys
-    while true
-        # do one step (assumes ks[1, :] == f0)
-        rk_embedded_step!(sys, t, dt, btab)
-        # Check error and find a new step size:
-        err, newdt, timeout = stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, norm)
+    # Integrate
+    ##TODO: work on this argument list!
+    dts, errs, steps = rk_stepper!(sys, t, dt, tdir, tend, tout, ys, fs, btab, order, abstol, reltol, minstep, maxstep, norm, rk_dense_output!)
 
-        if err <= 1.0 # accept step
-            # diagnostics
-            steps[1] += 1
-            ##TODO: as I have removed variable output size I likely don't need
-            ## to grow these
-            push!(dts, dt)
-            push!(errs, err)
-
-            # Output:
-            ##NOTE in `ODE.jl` as they are using array of arrays which means the line
-            ## f0 = ks[1] is a view not a copy
-            f0 = sub(sys.work.ks, :, 1)
-            ##FSAL -> First Same As Last, this code seems like it could be set in a btab field instead
-            ## of always being recalculated
-            f1 = isFSAL(btab) ? sub(sys.work.ks, :, S) : fn(t + dt, sys.work.ytrial)
-            # interpolate onto given output points
-
-            ###############################################################
-            # different from the rksolver_array version
-            # I should be able to therefore abstract this out in a function
-            # and then really have two much smaller functions.
-            #
-            # I also need to extra/different parameters
-            # * tspan_fixed::Array
-            # * iter_fixed::Int
-            # * index_or_push!() to grow the output array ys which is different from the ys in the array version
-            ###############################################################
-            # first interpolate onto given output points (TODO: don't do this! only return solver steps)
-            # I really only need to do this for the last point (tend) otherwise
-            # I can skip this loop.
-            while iter_fixed - 1 < nsteps_fixed && tdir*t < tdir*tspan_fixed[iter_fixed] < tdir*(t + dt) # output at all new times which are < t+dt
-                yout = hermite_interp(tspan_fixed[iter_fixed], t, dt, y, ytrial, f0, f1)
-                push!(ys, yout) # TODO: 3rd order only!
-                push!(tout, tspan_fixed[iter_fixed])
-                iter_fixed += 1
-                iter += 1
-            end
-            # but also output every step taken
-            push!(ys, deepcopy(sys.work.ytrial))
-            push!(tout, t + dt)
-            # Also save the derivatives for the hermite interpolation
-            push!(fs, f1) # ys is the right point so take f1
-            iter += 1
-            ##############################################################
-            # End difference from rksolver_array
-            ##############################################################
-
-            sys.work.ks[:, 1] = f1 # load ks[:, 1] == f0 for next step
-
-            # Break if this was the last step:
-            islaststep && break
-
-            # Swap bindings of y and ytrial, avoids one copy
-            sys.work.yinit, sys.work.ytrial = sys.work.ytrial, sys.work.yinit
-
-            # Update t to the time at the end of current step:
-            t += dt
-            dt = newdt
-
-            # Hit end point exactly if next step within 1% of end:
-            if tdir*(t + dt*1.01) >= tdir*tend
-                dt = tend - t
-                islaststep = true # next step is the last, if it succeeds
-            end
-        elseif abs(newdt) < minstep  # minimum step size reached, break
-            println("Warning: dt < minstep.  Stopping.")
-            break
-        else # redo step with smaller dt
-            islaststep = false
-            steps[2] += 1
-            dt = newdt
-            timeout = timeout_const
-        end
-    end
-
-    ##################################################
-    # Different from rksolver_array
-    ##################################################
-    ##TODO: return an interpolating function
+    # Output solution
     return DenseOdeSolution(tout, hcat(ys...)', hcat(fs...)')
-    ##################################################
-    # end difference from rksolver_array
-    ##################################################
 end
 
 # estimator for initial step based on book
@@ -288,6 +119,101 @@ function hinit(sys, tstart, tend, order, reltol, abstol)
         h1 = 10.0^pow
     end
     return tdir*min(100*h0, h1, tdir*(tend - tstart)), tdir, f0
+end
+
+##TODO: it might make more sense just to pass the {N, S} instead of using type generic for it
+function rk_stepper!{N, S}(sys, t, dt, tdir, tend, tout, ys, fs, btab::TableauRKExplicit{N, S}, order, abstol, reltol, minstep, maxstep, norm, output_func!::Function)
+    # after step reduction do not increase step for `timeout_const` steps
+    const timeout_const = 5
+
+    # Diagnostics
+    dts = Float64[]
+    errs = Float64[]
+    steps = [0, 0]  # [accepted, rejected]
+
+    ## Integration loop
+    nout = size(ys, 2) # needed for array_output
+    islaststep = abs(t + dt - tend) <= eps(tend) ? true : false
+    timeout = 0 # for step-control
+    sys.work.out_i = 2 # the index into tout and ys
+    while true
+        # do one step (assumes ks[1, :] == f0)
+        rk_embedded_step!(sys, t, dt, btab)
+        # Check error and find a new step size:
+        err, newdt, timeout = stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, norm)
+
+        if err <= 1.0 # accept step
+            # diagnostics
+            steps[1] += 1
+            push!(dts, dt)
+            push!(errs, err)
+
+            # Output:
+            ##NOTE in `ODE.jl` as they are using array of arrays which means the line
+            ## f0 = ks[1] is a view not a copy
+            f0 = sub(sys.work.ks, :, 1)
+            ##FSAL -> First Same As Last, this code seems like it could be set in a btab field instead
+            ## of always being recalculated
+            f1 = isFSAL(btab) ? sub(sys.work.ks, :, S) : fn(t + dt, sys.work.ytrial)
+            # interpolate onto given output points
+
+            # output/save step
+            output_func!(sys, ys, fs, tout, t, dt, f0, f1, nout, islaststep)
+
+            ####################################################################
+            # prepare for next iteration
+            ####################################################################
+            sys.work.ks[:, 1] = f1 # load ks[:, 1] == f0 for next step
+
+            # Break (end integration loop) if this was the last step:
+            islaststep && break
+
+            # Swap bindings of y and ytrial, avoids one copy
+            sys.work.yinit, sys.work.ytrial = sys.work.ytrial, sys.work.yinit
+
+            # Update t to the time at the end of current step:
+            t += dt
+            dt = newdt
+
+            # Hit end point exactly if next step within 1% of end:
+            if tdir*(t + dt*1.01) >= tdir*tend
+                dt = tend - t
+                islaststep = true # next step is the last, if it succeeds
+            end
+        elseif abs(newdt) < minstep  # minimum step size reached, break
+            ##TODO; make this a real error
+            println("Warning: dt < minstep.  Stopping.")
+            break
+        else # redo step with smaller dt
+            islaststep = false
+            steps[2] += 1
+            dt = newdt
+            timeout = timeout_const
+        end
+    end
+    return dts, errs, steps
+end
+
+##TODO: I have broken the tdir variable, so I need to add checks for
+## integrating in reverse
+function rk_array_output!(sys, ys, fs, tspan, t, dt, f0, f1, nout, islaststep)
+    # interpolate onto requested times in (t, t + dt)
+    ##TODO: I am missing the last timestep
+    ## we need out_i - 1 < nout so that we don't have infinite loop at laststep
+    while sys.work.out_i - 1 < nout && (tspan[sys.work.out_i] < t + dt || islaststep)
+        # TODO: 3rd order only!
+        hermite_interp!(sub(ys, :, sys.work.out_i), tspan[sys.work.out_i], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
+        sys.work.out_i += 1
+    end
+end
+
+##TODO: currently I have to pass in nout and islaststep because of the array_output
+## find out how to avoid this
+function rk_dense_output!(sys, ys, fs, tout, t, dt, f0, f1, nout, islaststep)
+    push!(ys, deepcopy(sys.work.ytrial))
+    push!(tout, t + dt)
+    # Also save the derivatives for the hermite interpolation
+    push!(fs, f1) # ys is the right point so take f1
 end
 
 function rk_embedded_step!{N, S}(sys, t, dt, btab::TableauRKExplicit{N, S})
