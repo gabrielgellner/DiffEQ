@@ -102,7 +102,7 @@ isFSAL(btab::TableauRKExplicit) = btab.a[end, :] == btab.b[1, :] && btab.c[end] 
 # think about what I want to do.
 
 # Dormand-Prince https://en.wikipedia.org/wiki/Dormand%E2%80%93Prince_method
-const bt_dopri5 = TableauRKExplicit(:dopri, (5, 4), Float64,
+const bt_dopri54 = TableauRKExplicit(:dopri, (5, 4), Float64,
     [0 0 0 0 0 0 0
      1//5 0 0 0 0 0 0
      3//40 9//40 0 0 0 0 0
