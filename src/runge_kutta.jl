@@ -181,7 +181,7 @@ function rk_stepper!{N, S}(sys, t, dt, tdir, tend, tout, ys, fs, btab::TableauRK
                 islaststep = true # next step is the last, if it succeeds
             end
         elseif abs(newdt) < minstep  # minimum step size reached, break
-            ##TODO; make this a real error
+            ##TODO; make this a real error, this is likely the "stiffness" check from the original code. Compare and give a meaningful error name if so
             println("Warning: dt < minstep.  Stopping.")
             break
         else # redo step with smaller dt
