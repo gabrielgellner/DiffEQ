@@ -4,7 +4,7 @@ module DiffEQ
 # on the interface that I want to use.
 
 export aode, dode
-export Dopri5
+export Dopri54
 
 #TODO: So I am doing all the package import logic in this file, which feels
 # super ugly me, need to see if there is a better way

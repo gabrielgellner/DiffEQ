@@ -7,8 +7,8 @@
 ##############################
 #NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
 ##TODO: get rid of the kwargs... and be explicit
-aode(sys::Dopri5, tspan; kwargs...) = rksolver_array(sys, tspan, bt_dopri5; kwargs...)
-dode(sys::Dopri5, tspan; kwargs...) = rksolver_dense(sys, tspan, bt_dopri5; kwargs...)
+aode(sys::Dopri54, tspan; kwargs...) = rksolver_array(sys, tspan, bt_dopri54; kwargs...)
+dode(sys::Dopri54, tspan; kwargs...) = rksolver_dense(sys, tspan, bt_dopri54; kwargs...)
 
 function rksolver_array{N, S}(sys::RungeKuttaSystem,
                         tspan::AbstractVector{Float64},
@@ -46,7 +46,7 @@ function rksolver_array{N, S}(sys::RungeKuttaSystem,
     ## Integration loop
     dts, errs, steps = rk_stepper!(sys, t, dt, tdir, tend, tspan, ys, [], btab, order, abstol, reltol, minstep, maxstep, norm, rk_array_output!)
 
-    return RKOdeSolution(tspan, ys')
+    return RKODESolution(tspan, ys')
 end
 
 function rksolver_dense{N, S}(sys::RungeKuttaSystem,
@@ -89,7 +89,7 @@ function rksolver_dense{N, S}(sys::RungeKuttaSystem,
     dts, errs, steps = rk_stepper!(sys, t, dt, tdir, tend, tout, ys, fs, btab, order, abstol, reltol, minstep, maxstep, norm, rk_dense_output!)
 
     # Output solution
-    return DenseOdeSolution(tout, hcat(ys...)', hcat(fs...)')
+    return DenseODESolution(tout, hcat(ys...)', hcat(fs...)')
 end
 
 # estimator for initial step based on book
