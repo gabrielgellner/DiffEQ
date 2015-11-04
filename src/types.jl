@@ -9,10 +9,10 @@ order(b::Tableau) = b.order
 Base.convert{Tnew <: Real}(::Type{Tnew}, tab::Tableau) = error("Define convert method for concrete Tableau types")
 
 ## Solver Output Types
-abstract AbstractOdeSolution
+abstract AbstractODESolution
 
 #TODO: add solver information. Look at what is going on in `Optim.jl`
-type RKOdeSolution <: AbstractOdeSolution
+type RKODESolution <: AbstractODESolution
     # I currently hard code the types as this is the most common case. I can
     # look into generalizing this, but I will be wary of making the code overly
     # complex to do so
@@ -28,8 +28,8 @@ end
 # needed for the ode solvers. This will also be used as the type dispatch
 # for the generic ode solver interfaces (aode, dode, iode, etc).
 #
-abstract AbstractOdeSystem
-abstract RungeKuttaSystem <: AbstractOdeSystem
+abstract AbstractODESystem
+abstract RungeKuttaSystem <: AbstractODESystem
 
 type RKWorkspace
     ks::Array{Float64, 2}
@@ -40,7 +40,12 @@ type RKWorkspace
     out_i::Int # used for fixed size output ##TODO think of a better way
 end
 
-type Dopri5 <: RungeKuttaSystem
+##TODO: I am not entirely sold on this name. Clearly it is a more explicit version of
+## Dopri5 which is reminicint of the fortran codes, and will be nice for when I
+## implement Dopri853. But would something like RKDP54 be better? I don't like
+## how many capitals and jargony that feels. I coudl do something like
+## ODE54 ... but that has capitals and is vague. Need to think about this
+type Dopri54 <: RungeKuttaSystem
     ##TODO: I shouln't let ndim change
     ndim::Int ##TODO this should be in workspace, really things in the top level should be fair game to change
     func::Function
@@ -48,12 +53,12 @@ type Dopri5 <: RungeKuttaSystem
     work::RKWorkspace
 end
 
-function Dopri5(func::Function, y0::Array{Float64, 1})
+function Dopri54(func::Function, y0::Array{Float64, 1})
     #I have hard coded the stages into this `7` I think this makes the most
     #sense as each RK type will need to have its own constructor like this,
     #so a parametric type isn't needed.
     ndim = length(y0)
-    Dopri5(
+    Dopri54(
         ndim, # ndim
         func, # dydt
         y0, # y0
