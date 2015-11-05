@@ -53,9 +53,9 @@ only supporting these 2-3 solvers for the explicit Runge-Kutta family. To this
 end some nice simplifications can be made:
 
 * Simplify the Butcher tableau type
-    * The FSAL property should be a boolean field that is set at construction
-    * The order of the tableau should be a field set at construction and not a
-      type parameter
+    * The FSAL property should be a `Bool` field that is set at construction [Done]
+    * The stages (S) of the tableau should be a field set at construction and
+      not a type parameter [Done]
 
 Once these changes are implemented the question comes on how to call the `Dopri`
 codes. Currently we have specific types for the specific type in `Dopri54`.

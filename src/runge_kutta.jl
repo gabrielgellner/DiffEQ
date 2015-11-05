@@ -10,9 +10,9 @@
 aode(sys::Dopri54, tspan; kwargs...) = rksolver_array(sys, tspan, bt_dopri54; kwargs...)
 dode(sys::Dopri54, tspan; kwargs...) = rksolver_dense(sys, tspan, bt_dopri54; kwargs...)
 
-function rksolver_array{N, S}(sys::RungeKuttaSystem,
+function rksolver_array(sys::RungeKuttaSystem,
                         tspan::AbstractVector{Float64},
-                        btab::TableauRKExplicit{N, S};
+                        btab::TableauRKExplicit;
                         reltol = 1.0e-5,
                         abstol = 1.0e-8,
                         minstep = abs(tspan[end] - tspan[1])/1e18,
@@ -20,7 +20,7 @@ function rksolver_array{N, S}(sys::RungeKuttaSystem,
                         initstep = 0.0
                         )
     # parameters
-    order = minimum(btab.order)
+    order = minimum(btab.order) #TODO: why is the order the minimum?
 
     ## Initialization
     t = tspan[1]
@@ -34,7 +34,7 @@ function rksolver_array{N, S}(sys::RungeKuttaSystem,
     nsteps_fixed = length(tspan)
     ##Note: it is more column major to think of an array of points joined along
     ## columns. When returned it must be transposed.
-    ys = Array(Float64, sys.ndim, nsteps_fixed)
+    ys = Array(Float64, sys.work.ndim, nsteps_fixed)
     ys[:, 1] = sys.y0
 
     # Time
@@ -49,9 +49,9 @@ function rksolver_array{N, S}(sys::RungeKuttaSystem,
     return RKODESolution(tspan, ys')
 end
 
-function rksolver_dense{N, S}(sys::RungeKuttaSystem,
+function rksolver_dense(sys::RungeKuttaSystem,
                         tspan::AbstractVector{Float64},
-                        btab::TableauRKExplicit{N, S};
+                        btab::TableauRKExplicit;
                         reltol = 1.0e-5,
                         abstol = 1.0e-8,
                         minstep = abs(tspan[end] - tspan[1])/1e18,
@@ -94,7 +94,7 @@ end
 
 # estimator for initial step based on book
 # "Solving Ordinary Differential Equations I" by Hairer et al., p.169
-function hinit(sys, tstart, tend, order, reltol, abstol)
+function hinit(sys::AbstractODESystem, tstart, tend, order, reltol, abstol)
     # Returns first step, direction of integration and F evaluated at t0
     tdir = sign(tend - tstart)
     tdir == 0 && error("Zero time span")
@@ -122,7 +122,7 @@ function hinit(sys, tstart, tend, order, reltol, abstol)
 end
 
 ##TODO: it might make more sense just to pass the {N, S} instead of using type generic for it
-function rk_stepper!{N, S}(sys, t, dt, tdir, tend, tout, ys, fs, btab::TableauRKExplicit{N, S}, order, abstol, reltol, minstep, maxstep, norm, output_func!::Function)
+function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, btab::TableauRKExplicit, order, abstol, reltol, minstep, maxstep, norm, output_func!::Function)
     # after step reduction do not increase step for `timeout_const` steps
     const timeout_const = 5
 
@@ -152,9 +152,8 @@ function rk_stepper!{N, S}(sys, t, dt, tdir, tend, tout, ys, fs, btab::TableauRK
             ##NOTE in `ODE.jl` as they are using array of arrays which means the line
             ## f0 = ks[1] is a view not a copy
             f0 = sub(sys.work.ks, :, 1)
-            ##FSAL -> First Same As Last, this code seems like it could be set in a btab field instead
-            ## of always being recalculated
-            f1 = isFSAL(btab) ? sub(sys.work.ks, :, S) : fn(t + dt, sys.work.ytrial)
+            # FSAL -> First Same As Last
+            f1 = isfsal(btab) ? sub(sys.work.ks, :, btab.nstages) : fn(t + dt, sys.work.ytrial)
             # interpolate onto given output points
 
             # output/save step
@@ -216,7 +215,7 @@ function rk_dense_output!(sys, ys, fs, tout, t, dt, f0, f1, nout, islaststep)
     push!(fs, f1) # ys is the right point so take f1
 end
 
-function rk_embedded_step!{N, S}(sys, t, dt, btab::TableauRKExplicit{N, S})
+function rk_embedded_step!(sys, t, dt, btab::TableauRKExplicit)
     # Does one embedded R-K step updating ytrial, yerr and ks.
     #
     # Assumes that work.ks[1, :] is already calculated!
@@ -225,18 +224,18 @@ function rk_embedded_step!{N, S}(sys, t, dt, btab::TableauRKExplicit{N, S})
     ##NOTE: currently hard coded to be Float64
     fill!(sys.work.ytrial, 0.0)
     fill!(sys.work.yerr, 0.0)
-    for d = 1:sys.ndim
+    for d = 1:sys.work.ndim
         sys.work.ytrial[d] += btab.b[1, 1]*sys.work.ks[d, 1]
         sys.work.yerr[d] += btab.b[2 ,1]*sys.work.ks[d, 1]
     end
-    for s = 2:S
+    for s = 2:btab.nstages
         calc_next_k!(sys, s, t, dt, btab)
-        for d = 1:sys.ndim
+        for d = 1:sys.work.ndim
             sys.work.ytrial[d] += btab.b[1, s]*sys.work.ks[d, s]
             sys.work.yerr[d] += btab.b[2, s]*sys.work.ks[d, s]
         end
     end
-    for d = 1:sys.ndim
+    for d = 1:sys.work.ndim
         sys.work.yerr[d] = dt*(sys.work.ytrial[d] - sys.work.yerr[d])
         sys.work.ytrial[d] = sys.work.yinit[d] + dt*sys.work.ytrial[d]
     end
@@ -260,7 +259,7 @@ function stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, 
     facmin = 1.0/facmax  # maximal step size decrease. ?
 
     # in-place calculate xerr./tol
-    for d = 1:sys.ndim
+    for d = 1:sys.work.ndim
         # if outside of domain (usually NaN) then make step size smaller by maximum
         isoutofdomain(sys.work.ytrial[d]) && return 10.0, dt*facmin, timout_after_nan
         sys.work.yerr[d] = sys.work.yerr[d]/(abstol + max(norm(sys.work.yinit[d]), norm(sys.work.ytrial[d]))*reltol) # Eq 4.10
@@ -278,7 +277,7 @@ function calc_next_k!(sys, s, t, dt, btab)
     # Calculates the next ks and puts it into ks[s, :]
     # - ks and ytmp are modified inside this function.
     sys.work.ytmp[:] = sys.work.yinit
-    for ss = 1:(s - 1), d = 1:sys.ndim
+    for ss = 1:(s - 1), d = 1:sys.work.ndim
         sys.work.ytmp[d] += dt*sys.work.ks[d, ss]*btab.a[s, ss]
     end
     sys.work.ks[:, s] = sys.func(t + btab.c[s]*dt, sys.work.ytmp)

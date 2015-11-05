@@ -1,14 +1,6 @@
-# Name is the name of the tableau/method (a symbol)
-# S is the number of stages (an int)
-# T is the type of the coefficients
-abstract Tableau{Name, S, T <: Real}
-Base.eltype{N, S, T}(b::Tableau{N, S, T}) = T
-order(b::Tableau) = b.order
-# Subtypes need to define a convert method to convert to a different
-# eltype with signature:
-Base.convert{Tnew <: Real}(::Type{Tnew}, tab::Tableau) = error("Define convert method for concrete Tableau types")
-
+################################################################################
 ## Solver Output Types
+################################################################################
 abstract AbstractODESolution
 
 #TODO: add solver information. Look at what is going on in `Optim.jl`
@@ -20,9 +12,9 @@ type RKODESolution <: AbstractODESolution
     y::Array{Float64, 2}
 end
 
-############################
-# OdeProblem Types
-############################
+################################################################################
+## ODESystem Types
+################################################################################
 ## Design
 # the idea behind this setup is to have a bundle of memory and the functions
 # needed for the ode solvers. This will also be used as the type dispatch
@@ -32,6 +24,7 @@ abstract AbstractODESystem
 abstract RungeKuttaSystem <: AbstractODESystem
 
 type RKWorkspace
+    ndim::Int
     ks::Array{Float64, 2}
     yinit::Array{Float64, 1}
     ytrial::Array{Float64, 1}
@@ -47,7 +40,6 @@ end
 ## ODE54 ... but that has capitals and is vague. Need to think about this
 type Dopri54 <: RungeKuttaSystem
     ##TODO: I shouln't let ndim change
-    ndim::Int ##TODO this should be in workspace, really things in the top level should be fair game to change
     func::Function
     y0::Array{Float64, 1}
     work::RKWorkspace
@@ -59,10 +51,10 @@ function Dopri54(func::Function, y0::Array{Float64, 1})
     #so a parametric type isn't needed.
     ndim = length(y0)
     Dopri54(
-        ndim, # ndim
         func, # dydt
         y0, # y0
         RKWorkspace(
+            ndim, #ndim
             Array(Float64, ndim, 7), #ks
             Array(Float64, ndim), #ywork
             Array(Float64, ndim), #ytrial

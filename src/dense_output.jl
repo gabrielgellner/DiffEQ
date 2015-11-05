@@ -7,7 +7,7 @@ import Base.call
 ## This work will try as best to follow convenctions set out in the packages
 ## `Interpolation.jl` and its successor `Grid.jl`. Hopefully with time these
 ## packages can be used inplace, or as the underlying technology of these types.
-type DenseOdeSolution
+type DenseODESolution
     ndim::Int
     order::Int # Interpolation order
     xvals::Array{Float64, 1}
@@ -15,13 +15,13 @@ type DenseOdeSolution
     fvals::Array{Float64, 2} # the derivatives dydt = f(x, y)
 end
 
-function DenseOdeSolution(xvals::Array{Float64, 1}, yvals::Array{Float64, 2}, fvals::Array{Float64, 2})
+function DenseODESolution(xvals::Array{Float64, 1}, yvals::Array{Float64, 2}, fvals::Array{Float64, 2})
     issorted(xvals) || throw(ArgumentError("x points must be in ascending order"))
     # I am only using 3-order interpolation at the moment, might want to be able to set this in the future
-    DenseOdeSolution(size(yvals, 2), 3, xvals, yvals, fvals)
+    DenseODESolution(size(yvals, 2), 3, xvals, yvals, fvals)
 end
 
-function call(sol::DenseOdeSolution, xval::Float64)
+function call(sol::DenseODESolution, xval::Float64)
     ((xval < sol.xvals[1]) | (xval > sol.xvals[end])) && throw(ArgumentError("Outside of Range"))
     xr = searchsorted(sol.xvals, xval)
     i1 = xr.stop
@@ -34,4 +34,4 @@ function call(sol::DenseOdeSolution, xval::Float64)
     return yout
 end
 
-call(sol::DenseOdeSolution, xvals::AbstractArray{Float64}) = vcat([sol(xval) for xval in xvals]...) # return a table
+call(sol::DenseODESolution, xvals::AbstractArray{Float64}) = vcat([sol(xval) for xval in xvals]...) # return a table
