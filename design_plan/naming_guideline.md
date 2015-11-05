@@ -18,4 +18,5 @@ they use `xspan` which is a far more meaningful name. The only issue I see
 is that then in a sense you would want to document your codes with a call
 signature of `function dydt(x, y)` which feels a bit strange to me. Maybe I
 should just go all in on the `tspan` name and have the solution struct return
-`.t` for the fieldname?
+`.t` for the fieldname? Yes. I am going to do this. The `ODESolution` will
+contain a `.t` field instead of `.x`.

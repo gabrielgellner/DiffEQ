@@ -5,9 +5,10 @@ So currently we have implemented a type system that is similar to how the
 fortran and C codes pass around memory for the solvers, currently we call this
 an `ODESystem`.
 
-Looking at https://github.com/JuliaLang/ODE.jl/pull/33 a related issue is how to
-think about how the callback function is used internally. They key is to have
-the ability to change the function to work inplace instead of having:
+Looking at https://github.com/JuliaLang/ODE.jl/pull/33 and
+https://github.com/JuliaLang/ODE.jl/issues/30 a related issue is how to think
+about how the callback function is used internally. They key is to have the
+ability to change the function to work inplace instead of having:
 ```jl
 dydt = f(t, y)
 ```
@@ -27,8 +28,16 @@ one function call will be good to think about for when we try to implement
 stiff solvers.
 
 So in summary it is worth looking into having as part of the `ODESystem` type
-some kind of `VectorField` or some such type to wrap the callback. Then have
+some kind of `ODEFunction` or some such type to wrap the callback. Then have
 all internal calls use the inplace version, dummy or not.
+
+In the issue 30 discussion there is a more subtle issue of how to model the
+form of the ODE in general citing the package `PETSc` which uses the model
+```
+F(t, u, u') = G(t, u)
+```
+for the general case. This seems interesting, but I have so little experience
+with this kind of issue I am not sure how to deal with it.
 
 ### Runge-Kutta Methods
 Currently we closely follow the structure of the `ODE.jl` packages structure
@@ -67,7 +76,7 @@ it is not clear at times how it has been changed. Things that need to be
 investigated:
 
 * Some of the code has some magical constants like `timeout_const = 5` which
-  feel unmotivate in the current form.
+  feel unmotivated in the current form.
 * It is not clear that the stiffness check has been ported over.
 
 Features that are missing that are known include:

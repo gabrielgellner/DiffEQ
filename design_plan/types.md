@@ -4,7 +4,9 @@
 I want to make an solver settings type that I can pass in instead of
 keyword arguments. I will look to matlabs odeset as a model, I will also
 want to use the naming conventions of `Optim.jl` for things like `abstol`
-as best I can for consistency.
+as best I can for consistency. That being said I am not sure this is the best
+solution, it might just make more sense to use the keyword arguments like we
+do currently. I need to think about what this buys us.
 
 ### Matlab
 So Matlab has options for: (I am changing the naming to be Julian they use CamelCase)
@@ -37,9 +39,9 @@ From the code I have from `ODE.jl` we have the kw args:
 
 ### Mathematica
 The options for `NDSolve` are:
-* AccuracyGoal (absolute local error) = WorkingPrecision/2
-* PrecisionGoal (relative local error) = WorkingPrecision/2
-* InterpolationOrder
+* AccuracyGoal (absolute local error) = WorkingPrecision/2 ~ 1e-8
+* PrecisionGoal (relative local error) = WorkingPrecision/2 ~ 1e-8
+* InterpolationOrder (seems to default to 3)
 * MaxStepFraction = 1/10
 * MaxSteps
 * MaxStepSize
@@ -70,4 +72,9 @@ I personally prefer the `struct` solution which I will want to emulate. What
 is strange is the naming -- which currently I have emulated. The input is `tspan`
 and when doing the array unpacking we have `t, y` but in we have `sol.x` for the
 `struct` version. I should likely make this consistent and call it `sol.t` or
-have `tspan` be `xvals` or something.
+have `tspan` be `xvals` or something. I have decided that the output will be
+called `sol.t` and I will refer to the `x` variable as `t` throughout.
+
+I am not sure how I am going to deal with event detection in general. Issues
+include how the options will be passed in (likely as part of the `ODESystem`)
+and how the events will be returned (likely as part of the `ODESolution`).
