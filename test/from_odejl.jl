@@ -1,7 +1,9 @@
 using DiffEQ
 using Base.Test
 
-##TODO: this code is crazy slow -- even seemingly for the ODE.jl original
+##TODO: this code is crazy slow -- even seemingly for the ODE.jl original,
+## likely this is a stiffness issue. I should get this test working so that
+## it tests for the code bailing out.
 
 ##Code taken from ODE.jl
 # rober testcase from http://www.unige.ch/~hairer/testset/testset.html
