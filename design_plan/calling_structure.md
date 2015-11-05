@@ -23,17 +23,21 @@ I do like the idea of a version that will return such an object for use.
 
 In truth if the `[tstart, tend]` version is used I should really only return
 the Mathematica like object as it is kind of crazy otherwise (why would I
-possibly want and array of the natural adaptive steps?). Really want I want
+possibly want and array of the natural adaptive steps?). Really what I want
 from this form is the dense output.
 
 Also from my days as a Fortran user I really miss the ability to just call the
 the solver for a single step inside a loop. I wonder if Julia is efficient
-enough to do something like this. (This would be the iterator approach)
+enough to do something like this. (This would be the iterator approach). The
+only difficulties here is to think of a sensible approach for what time to
+output at each iteration. Likely the most natural is the underlying mesh points
+as the dense output allows for the user to decide what to do between the last
+step and the current step without any loss of accuracy.
 
 ## New API ideas
 Currently we follow the `ODE.jl` versions which is really just a simplified
 version of Matlab's api. One thing that might be worth doing is making a
-settings interface. Matlab uses `odeset` to do this. For Julia we would want
+settings interface. Matlab uses `odeset` to do. For Julia we would want
 to do this with a custom type.
 ### Decision
 This is actually not a really good idea. It does little I have chosen instead
@@ -47,10 +51,10 @@ Things that I need:
 * `maxstep = abs(tspan[end] - tspan[1])/2.5`,
 * `initstep = 0.0` or `initial_step = 0.0`?
 
-### Universial calling function
+### Universal calling function
 I was thinking of using the name `desolve` like R's similar package. I also
 thought of names like `dsolve` `ndsolve`. I am not sure if `desolve` is the best
-as it kind of reads like we are "unsolving" something ... Modern SciPy uses
+as it kind of reads like we are "un-solving" something ... Modern SciPy uses
 `ode` for there driver and object/method access to updating the parameters like
 `ode(func, tspan).set_method("dopri5")` etc. I guess the nice thing about this
 name is that it is similar to the Matlab `odeXX` with the integer codes removed
@@ -178,14 +182,14 @@ dsolve(dopri5(func), y0, tout; abstol = 1e-5)
 ```
 
 etc is really just using the solver call as a way to set the options (hence why
-it might make sense for `yo` and `tout` to be part of the `OdeProblem` though
+it might make sense for `y0` and `tout` to be part of the `OdeProblem` though
 I am still not sure).
 
 Also if I go this route I am thinking I will want separate functions for if I
 want an array of points back, a dense interpolating function like object, or
 and iterator. Though I am not sure what names for this would be.
 * aode (array ode)
-* dode (dense ode)
+* dode (dense ode) # the only problem with this name is that dense also suggest memory layout, I can't think of a good name for interpolingfunction output
 * iode (itertor ode)
 these names seem dangerously terse. But full spelling it out is clearly too
 long. That being said I kind of like them.
@@ -207,11 +211,13 @@ will want the problem types to be CapsCase. `Dopri5`, `VODE` (don't really want
 the C as it is not the C code ... as I will port this to pure Julia).
 
 Now if I use the `xode` name then I really won't want to support DDE as these
-are not ODE's as far as I understand, whereas DAE's are.
+are not ODE's as far as I understand, whereas DAE's are. Though this might be
+overly semantic, or even incorrect.
 
-### OdeProblem -> OdeSystem
-I have decided to call this an `OdeSystem` as this gives the nice short variable
-name `sys` or `osys` vs `prob` which I don't really.
+### ODEProblem -> ODESystem
+I have decided to call this an `ODESystem` as this gives the nice short variable
+name `sys` or `osys` vs `prob` which I don't really like. Also this avoids the
+possible future conflict with `ODE.jl` using `ODEProblem`.
 
 Now currently all the fields are top level but I am toying with the idea of
 adding the `y0` initial value to the system, thereby solving the `ndim` issue as
@@ -220,9 +226,15 @@ With this in mind I see that doing things like `sys.y0 = [blah]` could be common
 what I am scared of is if changing the system fields like this is common that
 the user might much around with the work arrays. Though this should largely
 be harmless it seems ugly to me. maybe I want a subtype `Workspace` that
-contains the memory stuff so the user would need to do `sys.workspace.ks` etc
-which would make it clear that this is not a top level.
+contains the memory stuff so the user would need to do `sys.work.ks` etc
+which would make it clear that this is not a top level. [This has been done,
+though I am toying with changing the name to sys.mem and the type `RKMemory` etc
+to try and avoid conflicting with the name workspace idea in the Julia REPL]
 
 Also this allocation of memory will make easy parallel runs harder, as you
 will need to make sure you make copies of each of the system types so that
-they don't conflict with each other.
+they don't conflict with each other, though it is not clear that just doing
+a naked ```aode(Dopri(func, y0), tout)``` would be any worse than allocating the
+memory in the function itself. So this is really an issue of documentation so
+that the user does not pass in a `ODESystem` to a parallel call and not realize
+that this will share memory.

@@ -17,7 +17,7 @@ function actual_test1(t)
 end
 
 tout = linspace(0, 2, 100)
-sol = aode(Dopri5(test1, [-1.0, 4.0]), tout)
+sol = aode(Dopri54(test1, [-1.0, 4.0]), tout)
 ##TODO what is the correct way to turn an array of arrays into a matrix?
 actual_sol = hcat([actual_test1(t) for t in tout]...)'
 sol_diff = abs(sol.y .- actual_sol)
