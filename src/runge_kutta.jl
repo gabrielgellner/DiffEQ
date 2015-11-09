@@ -34,7 +34,7 @@ function rksolver_array(sys::RungeKuttaSystem,
     nsteps_fixed = length(tspan)
     ##Note: it is more column major to think of an array of points joined along
     ## columns. When returned it must be transposed.
-    ys = Array(Float64, sys.work.ndim, nsteps_fixed)
+    ys = Array{Float64}(sys.work.ndim, nsteps_fixed)
     ys[:, 1] = sys.y0
 
     # Time
@@ -76,7 +76,7 @@ function rksolver_dense(sys::RungeKuttaSystem,
     # ys is an array of arrays so that it can grow as needed, this will be
     # converted to an array (table: nsteps x ndim array) at output
     ys = Array{Float64, 1}[copy(sys.y0)]
-    fs = Array{Float64, 1}[sys.func(tstart, sys.y0)]
+    fs = Any[] # this is an array of (ndim x 7)-arrays
 
     # Time
     dt, tdir, sys.work.ks[:, 1] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = func(y0)
@@ -89,7 +89,7 @@ function rksolver_dense(sys::RungeKuttaSystem,
     dts, errs, steps = rk_stepper!(sys, t, dt, tdir, tend, tout, ys, fs, btab, order, abstol, reltol, minstep, maxstep, norm, rk_dense_output!)
 
     # Output solution
-    return DenseODESolution(tout, hcat(ys...)', hcat(fs...)')
+    return DenseODESolution(tout, hcat(ys...), fs)
 end
 
 # estimator for initial step based on book
@@ -151,18 +151,22 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
             # Output:
             ##NOTE in `ODE.jl` as they are using array of arrays which means the line
             ## f0 = ks[1] is a view not a copy
-            f0 = sub(sys.work.ks, :, 1)
+            ##TODO: not sure I need these definitions of f0, f1, if I continue to not
+            ## go for the full generality of the `ODE.jl` and focus on given methods
+            ## as for my dopri5 codes f0 -> sys.work.ks[:, 1] and f1 -> sys.work.ks[:, 7]
+            #f0 = sub(sys.work.ks, :, 1)
             # FSAL -> First Same As Last
-            f1 = isfsal(btab) ? sub(sys.work.ks, :, btab.nstages) : fn(t + dt, sys.work.ytrial)
-            # interpolate onto given output points
-
+            #f1 = isfsal(btab) ? sub(sys.work.ks, :, btab.nstages) : sys.func(t + dt, sys.work.ytrial)
+            # setup interpolating coefficients
+            setup_hermite!(sys, dt)
             # output/save step
-            output_func!(sys, ys, fs, tout, t, dt, f0, f1, nout, islaststep)
+            output_func!(sys, ys, fs, tout, t, dt, nout, islaststep)
 
             ####################################################################
             # prepare for next iteration
             ####################################################################
-            sys.work.ks[:, 1] = f1 # load ks[:, 1] == f0 for next step
+            #sys.work.ks[:, 1] = f1 # load hs[:, 1] == f0 for next step
+            sys.work.ks[:, 1] = sys.work.ks[:, 7] # load ks[:, 1] == f0 for next step
 
             # Break (end integration loop) if this was the last step:
             islaststep && break
@@ -195,24 +199,25 @@ end
 
 ##TODO: I have broken the tdir variable, so I need to add checks for
 ## integrating in reverse
-function rk_array_output!(sys, ys, fs, tspan, t, dt, f0, f1, nout, islaststep)
+function rk_array_output!(sys, ys, fs, tspan, t, dt, nout, islaststep)
     # interpolate onto requested times in (t, t + dt)
     ##TODO: I am missing the last timestep
     ## we need out_i - 1 < nout so that we don't have infinite loop at laststep
     while sys.work.out_i - 1 < nout && (tspan[sys.work.out_i] < t + dt || islaststep)
         # TODO: 3rd order only!
-        hermite_interp!(sub(ys, :, sys.work.out_i), tspan[sys.work.out_i], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
+        #hermite_interp!(sub(ys, :, sys.work.out_i), tspan[sys.work.out_i], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
+        hermite_shampine_interp!(sub(ys, :, sys.work.out_i), tspan[sys.work.out_i], t, dt, sub(sys.work.ycont, :, :))
         sys.work.out_i += 1
     end
 end
 
 ##TODO: currently I have to pass in nout and islaststep because of the array_output
 ## find out how to avoid this
-function rk_dense_output!(sys, ys, fs, tout, t, dt, f0, f1, nout, islaststep)
+function rk_dense_output!(sys, ys, fs, tout, t, dt, nout, islaststep)
     push!(ys, deepcopy(sys.work.ytrial))
     push!(tout, t + dt)
-    # Also save the derivatives for the hermite interpolation
-    push!(fs, f1) # ys is the right point so take f1
+    # Also save the hermite coefficients
+    push!(fs, deepcopy(sys.work.ycont))
 end
 
 function rk_embedded_step!(sys, t, dt, btab::TableauRKExplicit)
