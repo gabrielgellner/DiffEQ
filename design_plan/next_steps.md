@@ -81,11 +81,11 @@ investigated:
 
 Features that are missing that are known include:
 * the Hermite interpolation is of the incorrect order
-    * Dopri5 should have 4th order
+    * Dopri5 should have 4th order [Done]
     * Dop853 should have 7th order
   and really there are special forms derived by Shampine for the forms of these
   Hermite coefficients that take advantage of the ode formulation. These
-  should simply be ported over from the original codes.
+  should simply be ported over from the original codes. [Done]
 * Event detection.
 
 ## Benchmarks

@@ -12,10 +12,10 @@ type DenseODESolution
     order::Int # Interpolation order
     xvals::Array{Float64, 1}
     yvals::Array{Float64, 2}
-    fvals::Array{Float64, 2} # the derivatives dydt = f(x, y)
+    fvals::Array{Any, 1} # hermite coefficients
 end
 
-function DenseODESolution(xvals::Array{Float64, 1}, yvals::Array{Float64, 2}, fvals::Array{Float64, 2})
+function DenseODESolution(xvals::Array{Float64, 1}, yvals::Array{Float64, 2}, fvals::Array{Any, 1})
     issorted(xvals) || throw(ArgumentError("x points must be in ascending order"))
     # I am only using 3-order interpolation at the moment, might want to be able to set this in the future
     DenseODESolution(size(yvals, 2), 3, xvals, yvals, fvals)
@@ -27,10 +27,10 @@ function call(sol::DenseODESolution, xval::Float64)
     i1 = xr.stop
     i2 = xr.start
     # if both are the same we are on a knot point, just return it
-    i2 - i1 == 0 && return sol.yvals[i1, :]
+    i2 - i1 == 0 && return sol.yvals[:, i1]
     # otherwise carry out the interpolation
     dt = sol.xvals[i2] - sol.xvals[i1]
-    yout = hermite_interp(xval, sol.xvals[i1], dt, sol.yvals[i1, :], sol.yvals[i2, :], sol.fvals[i1, :], sol.fvals[i2, :])
+    yout = hermite_shampine_interp(xval, sol.xvals[i1], dt, sol.fvals[i1])
     return yout
 end
 

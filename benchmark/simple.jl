@@ -31,12 +31,10 @@ println("ode45: $i")
 
 # two ref runs from matlab 2015b ... notice the error
 #refsol = [-0.705810884230406, -0.708700436943760, 0.863899310414768]
-refsol = [-0.705653253786900, -0.708731728427065, 0.863900202621616]
+reft = 11.993999399939995
+refsol = [-0.701710883180149, -0.712461813852860, 0.865376759827586]
 
-println("solutions")
-println(sol.y[end - 1, :])
-println(y[end - 1])
-println("ref")
-println(refsol)
-println(sol.y[end, :])
-println(y[end])
+println("Compare:")
+println("ref:   ", reft, refsol)
+println("aode:  ", sol.x[end - 5], sol.y[end - 5, :])
+println("ode45: ", t[end - 5], y[end - 5])
