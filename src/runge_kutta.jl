@@ -257,20 +257,34 @@ function stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, 
     #
     # TODO:
     # - allow component-wise reltol and abstol?
-    const timout_after_nan = 5
+    #NOTE: fac is the stepsize scaling fac(tor)
+    ##TODO: fortran code has EXPO1 = 1/8, SAFE = 0.9, FAC1 = 0.2, FAC2 = 10,
+    ## FACC1 = 1/FAC1, FACC2 = 1/FAC2
+    ## and FAC1 <= HNEW/H <= FAC2
+    ## which means:
+    ## facmax = FACC1 = 1/FAC1 = 1/0.2 = 5.0
+    ## facmin = FACC2 = 1/FAC1 = 1/10 = 0.1 (whereas we have 1/0.8 = 1.25)
     ##TODO: this is a very complicated way to calculate 0.8 ;)
     #fac = [0.8, 0.9, 0.25^(1/order), 0.38^(1/order)][1]
     fac = 0.8
-    facmax = 5.0 # maximal step size increase. 1.5-5
+    facmax = 5.0 # maximal step size increase. 1.5 - 5
     facmin = 1.0/facmax  # maximal step size decrease. ?
 
     # in-place calculate xerr./tol
     for d = 1:sys.work.ydim
+        ##TODO: this is not a "usually NaN" as: isoutofdomain(x) = isnan(x) maybe this was a place holder?
         # if outside of domain (usually NaN) then make step size smaller by maximum
-        isoutofdomain(sys.work.ytrial[d]) && return 10.0, dt*facmin, timout_after_nan
+        if isoutofdomain(sys.work.ytrial[d]) # this code is not in fortran version
+            #NOTE 10.0 is the returned err, the timeout is the 5
+            return 10.0, dt*facmin, 5
+        end
         sys.work.yerr[d] = sys.work.yerr[d]/(abstol + max(norm(sys.work.yinit[d]), norm(sys.work.ytrial[d]))*reltol) # Eq 4.10
     end
     err = norm(sys.work.yerr, 2) # Eq. 4.11
+    ##TODO: fortran code has:
+    # FAC = ERR^EXP01 = ERR^(1/8)
+    # FAC = max(FACC2, min(FACC1, FAC/SAFE))
+    # HNEW = H/FAC
     newdt = min(maxstep, tdir*dt*max(facmin, fac*(1/err)^(1/order))) # Eq 4.13 modified
     if timeout > 0
         newdt = min(newdt, dt)
@@ -279,10 +293,10 @@ function stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, 
     return err, tdir*newdt, timeout
 end
 
-function calc_next_k!(sys, s, t, dt, btab)
+function calc_next_k!(sys, s::Integer, t, dt, btab)
     # Calculates the next ks and puts it into ks[s, :]
     # - ks and ytmp are modified inside this function.
-    sys.work.ytmp[:] = sys.work.yinit
+    sys.work.ytmp[:] = sys.work.yinit #TODO: does this line copy?
     for ss = 1:(s - 1), d = 1:sys.work.ydim
         sys.work.ytmp[d] += dt*sys.work.ks[d, ss]*btab.a[s, ss]
     end
