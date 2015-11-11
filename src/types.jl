@@ -24,7 +24,7 @@ abstract AbstractODESystem
 abstract RungeKuttaSystem <: AbstractODESystem
 
 type RKWorkspace
-    ndim::Int
+    ydim::Int
     ks::Array{Float64, 2}
     yinit::Array{Float64, 1}
     ytrial::Array{Float64, 1}
@@ -50,18 +50,18 @@ function Dopri54(func::Function, y0::Array{Float64, 1})
     #I have hard coded the stages into this `7` I think this makes the most
     #sense as each RK type will need to have its own constructor like this,
     #so a parametric type isn't needed.
-    ndim = length(y0)
+    ydim = length(y0)
     Dopri54(
         func, # dydt
         y0, # y0
         RKWorkspace(
-            ndim, #ndim
-            Array{Float64}(ndim, 7), #ks
-            Array{Float64}(ndim), #ywork
-            Array{Float64}(ndim), #ytrial
-            Array{Float64}(ndim), #yerr
-            Array{Float64}(ndim), #ytmp
-            Array{Float64}(ndim, 5), #ycont 5 comes from the fact that it is 5th order interpolant
+            ydim, #ndim
+            Array{Float64}(ydim, 7), #ks
+            Array{Float64}(ydim), #ywork
+            Array{Float64}(ydim), #ytrial
+            Array{Float64}(ydim), #yerr
+            Array{Float64}(ydim), #ytmp
+            Array{Float64}(ydim, 5), #ycont 5 comes from the fact that it is 5th order interpolant
             0 # out_i
         )
     )
