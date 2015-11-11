@@ -2,11 +2,9 @@
 # Helper functions:
 ################################################################################
 
-# in Hairer & Wanner we have the following explainting of the dense output:
-# given that for a single step t -> t + dt we have the following
-# f(t, y(t)), f(t + dt, y(t + dt)) and y(t) and y(t + dt) then clearly the
-# 3rd degree Hermite polynomial is available for interpolating between (t, t + dt).
-# now to bootstrap this interpolant without additional funciton calls we can evaluate
+# in Hairer & Wanner describe how we can get an Hermite interpolation of order 5
+# without additional function calls in pgs. 191-194. The coefficient used are
+# based on extensions to the original dormand prince versions by shampine.
 #
 const hermite_shampine_coef = [
     -12715105075/11282082432,
@@ -19,7 +17,6 @@ const hermite_shampine_coef = [
 ]
 
 function setup_hermite!(sys, dt)
-    ##TODO: I like the names ytrial -> y1, and yinit -> y0
     ydiff = sys.work.ytrial - sys.work.yinit
     bspl = dt*sub(sys.work.ks, :, 1) - ydiff
     sys.work.ycont[:, 1] = sys.work.yinit
@@ -73,3 +70,19 @@ end
 # isoutofdomain takes the state and returns true if state is outside
 # of the allowed domain.  Used in adaptive step-control.
 isoutofdomain(x) = isnan(x)
+islaststep(sys::AbstractODESystem) = sys.work.laststep
+
+function hairer_norm(sys, abstol, reltol)
+    # In harier and wanner pg. 168 the following error norm is described, which they mention
+    # others have used max norms instead like we currently do. But the fortran codes use
+    # this formulation
+    # Mathematically the formula is:
+    # err = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(\frac{y_{1i} - \yhat{y_{1i}}}{sc_i}^2)}
+    # with sc_i = atol_i + \max(\abs(y_{0i}), \abs(y_{1i}))*rtol_i
+    total = 0.0
+    for i in 1:sys.work.ydim
+        sc = abstol + reltol*max(abs(sys.work.yinit[i]), abs(sys.work.ytrial[i]))
+        total += sqrt(((sys.work.ks[:, 1] - sys.work.ks[:, 7])/sys.work.ydim)^2)
+    end
+    return total
+end
