@@ -147,13 +147,13 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
 
     ## Integration loop
     sys.work.laststep = abs(t + dt - tend) <= eps(tend) ? true : false
-    timeout = 0 # for step-control calming
+    sys.work.timeout = 0 # for step-control calming, this does not seem to be in the original fortran codes
     sys.work.out_i = 2 # the index into tout and ys
     while true
         # do one step (assumes ks[1, :] == f0)
         rk_embedded_step!(sys, t, dt, btab)
         # Check error and find a new step size:
-        err, newdt, timeout = stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, norm)
+        err, newdt = stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
 
         if err <= 1.0 # accept step
             ## diagnostics
@@ -199,7 +199,7 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
             steps[2] += 1
             dt = newdt
             # after step reduction do not increase step for `5` steps
-            timeout = 5
+            sys.work.timeout = 5
         end
     end
     return dts, errs, steps
@@ -250,7 +250,7 @@ function rk_embedded_step!(sys, t, dt, btab::TableauRKExplicit)
     end
 end
 
-function stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, norm)
+function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     # Estimates the error and a new step size following Hairer &
     # Wanner 1992, p167 (with some modifications)
     #
@@ -299,11 +299,11 @@ function stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, 
     # The book has:
     # h_new = h*min(facmax, max(facmin, fac*(1/err)^(1/(q + 1))))
     newdt = min(maxstep, tdir*dt*max(facmin, fac*(1/err)^(1/order))) # Eq 4.13 modified
-    if timeout > 0
+    if sys.work.timeout > 0
         newdt = min(newdt, dt)
-        timeout -= 1
+        sys.work.timeout -= 1
     end
-    return err, tdir*newdt, timeout
+    return err, tdir*newdt
 end
 
 function calc_next_k!(sys, s::Integer, t, dt, btab)
