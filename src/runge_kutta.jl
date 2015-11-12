@@ -278,9 +278,12 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     ##TODO: this is a very complicated way to calculate 0.8 ;) These are all the possible
     # safety factors listed in Hairer and Wanner, but the Dopri5.f codes just uses the 0.9
     # Just leave this as a comment for now, maybe in future versions it
-    # would be worth having this as a selectable option?
+    # would be worth having this as a selectable option? Scipy makes this an option, and it
+    # looks like it is an option in the orignal fortran as well the IWORK[1] setting
     #fac = [0.8, 0.9, 0.25^(1/order), 0.38^(1/order)][1]
-    fac = 0.9
+    # it wold seem that larger values run the risk of less accurate answers for less cpu
+    # time. The 0.8 default is a conservative measure that goes for accuracy over speed.
+    fac = 0.8
     facmax = 5.0 # maximal step size increase. 1.5 - 5
     facmin = 1.0/facmax  # maximal step size decrease. ?
 
