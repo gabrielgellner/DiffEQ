@@ -240,11 +240,16 @@ function rk_embedded_step!(sys, t, dt, btab::TableauRKExplicit)
     for s = 2:btab.nstages
         calc_next_k!(sys, s, t, dt, btab)
         for d = 1:sys.work.ydim
+            ##TODO: this might be a source of a slowdown, as it is better to access
+            ## btab.b by the rows not across the columns. See about changing this.
             sys.work.ytrial[d] += btab.b[1, s]*sys.work.ks[d, s]
             sys.work.yerr[d] += btab.b[2, s]*sys.work.ks[d, s]
         end
     end
     for d = 1:sys.work.ydim
+        # here we set yerr to the difference between the higher order method `ytrial`
+        # and the lower order embeded method (which has been put in `yerr` in the previous
+        # steps, but gets overwritten with the difference here) and the stepsize.
         sys.work.yerr[d] = dt*(sys.work.ytrial[d] - sys.work.yerr[d])
         sys.work.ytrial[d] = sys.work.yinit[d] + dt*sys.work.ytrial[d]
     end
@@ -279,7 +284,16 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     facmax = 5.0 # maximal step size increase. 1.5 - 5
     facmin = 1.0/facmax  # maximal step size decrease. ?
 
-    # in-place calculate xerr./tol
+    # The error used for step size selection in Hairer and Wanner uses the following
+    # "norm"
+    # err = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(\frac{y_{1i} - \yhat{y_{1i}}}{sc_i}^2)}
+    # with sc_i = atol_i + \max(\abs(y_{0i}), \abs(y_{1i}))*rtol_i
+    # which in terms of norms can be seen as
+    # err = norm((y1[i] - yhat1[i])/sci)/sqrt(n) for i in 1:n
+    # and I think yerr is equal to y1[i] - yhat1[i] that is it is the difference between
+    # the lower and higher order method prediction
+
+    # in-place calculate yerr./tol
     for d = 1:sys.work.ydim
         ##TODO: this is not a "usually NaN" as: isoutofdomain(x) = isnan(x) maybe this was a place holder?
         # if outside of domain (usually NaN) then make step size smaller by maximum
@@ -287,11 +301,12 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
             #NOTE 10.0 is the returned err, the timeout is the 5
             return 10.0, dt*facmin, 5
         end
+        # rescale yerr by abstol + reltol*max(abs(y0), abs(y1)) which is called
         sys.work.yerr[d] = sys.work.yerr[d]/(abstol + max(norm(sys.work.yinit[d]), norm(sys.work.ytrial[d]))*reltol) # Eq 4.10
     end
-    ##TODO: the error formula Eq. 4.11 in the book uses:
-    ## the harier_norm function not clear that this is the same
-    err = norm(sys.work.yerr, 2) # Eq. 4.11
+    ##TODO: the error formula Eq. 4.11 in the book has an extra scaling of
+    ## 1/sqrt(ydim)
+    err = norm(sys.work.yerr)/sqrt(sys.work.ydim) # Eq. 4.11
     ##TODO: fortran code has:
     # FAC = ERR^EXP01 = ERR^(1/8)
     # FAC = max(FACC2, min(FACC1, FAC/SAFE))
