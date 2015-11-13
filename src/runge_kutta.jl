@@ -199,7 +199,7 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
             steps[2] += 1
             dt = newdt
             # after step reduction do not increase step for `5` steps
-            sys.work.timeout = 5
+            sys.work.timeout = 0
         end
     end
     return dts, errs, steps
@@ -302,14 +302,14 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
         # if outside of domain (usually NaN) then make step size smaller by maximum
         if isoutofdomain(sys.work.ytrial[d]) # this code is not in fortran version, though it might be suggested in the book. Check
             #NOTE 10.0 is the returned err, the timeout is the 5
-            return 10.0, dt*facmin, 5
+            return 10.0, dt*facmin, 0
         end
         # rescale yerr by abstol + reltol*max(abs(y0), abs(y1)) which is called
         sys.work.yerr[d] = sys.work.yerr[d]/(abstol + max(norm(sys.work.yinit[d]), norm(sys.work.ytrial[d]))*reltol) # Eq 4.10
     end
     ##TODO: the error formula Eq. 4.11 in the book has an extra scaling of
     ## 1/sqrt(ydim)
-    err = norm(sys.work.yerr)/sqrt(sys.work.ydim) # Eq. 4.11
+    err = norm(sys.work.yerr) #/sqrt(sys.work.ydim) # Eq. 4.11
     ##TODO: fortran code has:
     # FAC = ERR^EXP01 = ERR^(1/8)
     # FAC = max(FACC2, min(FACC1, FAC/SAFE))

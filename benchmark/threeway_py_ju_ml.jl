@@ -50,10 +50,15 @@ for (i, tol) in enumerate(tols)
     data_sp[:, i] = abs(refsol - ylast)
 end
 
+# read in the same run in matlab 2015a
+data_ml = readdlm("matlab_rigid.csv", ',')
+println(size(data_ml))
+
 subplot(131)
 loglog(tols, data_de'[:, 1], label = "aode")
 loglog(tols, data_o'[:, 1], "--k", label = "ode45")
 loglog(tols, data_sp'[:, 1], "-.r", label = "sp")
+loglog(data_ml[:, 1], data_ml[:, 2], "m", label = "matlab")
 # it is usefull to see a tol:tol[-1] line to see how the tolerance vs accuracy is working
 loglog([10.0^-i for i in 2:10], [10.0^(1 - i) for i in 2:10] , ":g")
 xlabel("tol")
@@ -64,6 +69,7 @@ subplot(132)
 loglog(tols, data_de'[:, 2], label = "aode")
 loglog(tols, data_o'[:, 2], "--k", label = "ode45")
 loglog(tols, data_sp'[:, 2], "-.r", label = "sp")
+loglog(data_ml[:, 1], data_ml[:, 3], "m", label = "matlab")
 # it is usefull to see a tol:tol[-1] line to see how the tolerance vs accuracy is working
 loglog([10.0^-i for i in 2:10], [10.0^(1 - i) for i in 2:10] , ":g")
 xlabel("tol")
@@ -74,6 +80,7 @@ subplot(133)
 loglog(tols, data_de'[:, 3], label = "aode")
 loglog(tols, data_o'[:, 3], "--k", label = "ode45")
 loglog(tols, data_sp'[:, 3], "-.r", label = "sp")
+loglog(data_ml[:, 1], data_ml[:, 4], "m", label = "matlab")
 # it is usefull to see a tol:tol[-1] line to see how the tolerance vs accuracy is working
 loglog([10.0^-i for i in 2:10], [10.0^(1 - i) for i in 2:10] , ":g")
 xlabel("tol")
