@@ -52,7 +52,8 @@ function rksolver_array(sys::RungeKuttaSystem,
     ## Integration loop
     dts, errs, steps = rk_stepper!(sys, t, dt, tdir, tend, tspan, ys, [], btab, order, abstol, reltol, minstep, maxstep, norm, rk_array_output!)
 
-    return RKODESolution(tspan, ys')
+    ##TODO: clean up the returing of stats so that rk_stepper acutally uses a stats type.
+    return RKODESolution(tspan, ys', ODESolutionStatistics(-1, steps[1], steps[2]))
 end
 
 function rksolver_dense(sys::RungeKuttaSystem,
@@ -95,6 +96,7 @@ function rksolver_dense(sys::RungeKuttaSystem,
     ##TODO: work on this argument list!
     dts, errs, steps = rk_stepper!(sys, t, dt, tdir, tend, tout, ys, fs, btab, order, abstol, reltol, minstep, maxstep, norm, rk_dense_output!)
 
+    ##TODO: think about how to deal with solver statistics for this kind of type
     # Output solution
     return DenseODESolution(tout, hcat(ys...), fs)
 end
@@ -146,8 +148,13 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
     steps = [0, 0]  # [accepted, rejected]
 
     ## Integration loop
+    # If sys.work.timeout > 0 then no increases in step size are allowed.
+    # basetimeout is the length of the timeout once it is triggered.
+    # this is not in the original dopri5.f code, and seems to be similar to the fac/facmin code that controls changes
+    # in the stepsize. I need to learn about best practices for this.
+    sys.work.basetimeout = 4 # 4 seems to work well
     sys.work.laststep = abs(t + dt - tend) <= eps(tend) ? true : false
-    sys.work.timeout = 0 # for step-control calming, this does not seem to be in the original fortran codes
+    sys.work.timeout = sys.work.basetimeout # ODE.jl uses 0, but this can cause the solver to have terrible accuracy at low tolerences. 4 seems to work well.
     sys.work.out_i = 2 # the index into tout and ys
     while true
         # do one step (assumes ks[1, :] == f0)
@@ -198,8 +205,8 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
             sys.work.laststep = false
             steps[2] += 1
             dt = newdt
-            # after step reduction do not increase step for `5` steps
-            sys.work.timeout = 5
+            # after step reduction do not increase step for `timeout` steps
+            sys.work.timeout = sys.work.basetimeout
         end
     end
     return dts, errs, steps
@@ -283,9 +290,9 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     #fac = [0.8, 0.9, 0.25^(1/order), 0.38^(1/order)][1]
     # it wold seem that larger values run the risk of less accurate answers for less cpu
     # time. The 0.8 default is a conservative measure that goes for accuracy over speed.
-    fac = 0.8
+    fac = 0.25^(1/5)
     facmax = 5.0 # maximal step size increase. 1.5 - 5
-    facmin = 1.0/facmax  # maximal step size decrease. ?
+    facmin = 0.1 #1.0/facmax  # maximal step size decrease. ?
 
     # The error used for step size selection in Hairer and Wanner uses the following
     # "norm"
@@ -301,10 +308,9 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
         ##TODO: this is not a "usually NaN" as: isoutofdomain(x) = isnan(x) maybe this was a place holder?
         # if outside of domain (usually NaN) then make step size smaller by maximum
         if isoutofdomain(sys.work.ytrial[d]) # this code is not in fortran version, though it might be suggested in the book. Check
-            #NOTE 10.0 is the returned err, the timeout is the 5
-            return 10.0, dt*facmin, 5
-            #TODO: having the timeout of 5 is not clearly something done in the fotran version
-            #return 10.0, dt*facmin, 0
+            #NOTE 10.0 is the returned err
+            sys.work.timeout = sys.work.basetimeout
+            return 10.0, dt*facmin
         end
         # rescale yerr by abstol + reltol*max(abs(y0), abs(y1)) which is called
         sys.work.yerr[d] = sys.work.yerr[d]/(abstol + max(norm(sys.work.yinit[d]), norm(sys.work.ytrial[d]))*reltol) # Eq 4.10
@@ -320,6 +326,8 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     # h_new = h*min(facmax, max(facmin, fac*(1/err)^(1/(q + 1))))
     newdt = min(maxstep, tdir*dt*max(facmin, fac*(1/err)^(1/order))) # Eq 4.13 modified
     if sys.work.timeout > 0
+        # if in a cooldown then we should just take the last stepsize. This instead takes the smaller of the new
+        # stepsize and the last stepsize. So really this cooldown is to make sure larger steps aren't taken.
         newdt = min(newdt, dt)
         sys.work.timeout -= 1
     end

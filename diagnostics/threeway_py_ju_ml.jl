@@ -38,6 +38,7 @@ data_o = Array{Float64}(3, length(tols))
 data_sp = Array{Float64}(3, length(tols))
 for (i, tol) in enumerate(tols)
     sol = aode(Dopri54(rigid, y0), tout, abstol = tol, reltol = tol)
+    println(tol, ' ', sol.stats.nsteps)
     data_de[:, i] = abs(refsol - sol.y[end, :]')
 
     t, y = ode45(rigid, y0, tout, abstol = tol, reltol = tol, points = :specified)
@@ -52,13 +53,13 @@ end
 
 # read in the same run in matlab 2015a
 data_ml = readdlm("matlab_rigid.csv", ',')
-println(size(data_ml))
+#println(size(data_ml))
 
 subplot(131)
 loglog(tols, data_de'[:, 1], label = "aode")
-loglog(tols, data_o'[:, 1], "--k", label = "ode45")
-loglog(tols, data_sp'[:, 1], "-.r", label = "sp")
-loglog(data_ml[:, 1], data_ml[:, 2], "m", label = "matlab")
+loglog(tols, data_o'[:, 1], "ko--", label = "ode45")
+loglog(tols, data_sp'[:, 1], "ro-.", label = "sp")
+loglog(data_ml[:, 1], data_ml[:, 2], "mo-", label = "matlab")
 # it is usefull to see a tol:tol[-1] line to see how the tolerance vs accuracy is working
 loglog([10.0^-i for i in 2:10], [10.0^(1 - i) for i in 2:10] , ":g")
 xlabel("tol")
@@ -67,9 +68,9 @@ legend(loc = 2)
 
 subplot(132)
 loglog(tols, data_de'[:, 2], label = "aode")
-loglog(tols, data_o'[:, 2], "--k", label = "ode45")
-loglog(tols, data_sp'[:, 2], "-.r", label = "sp")
-loglog(data_ml[:, 1], data_ml[:, 3], "m", label = "matlab")
+loglog(tols, data_o'[:, 2], "ko--", label = "ode45")
+loglog(tols, data_sp'[:, 2], "ro-.", label = "sp")
+loglog(data_ml[:, 1], data_ml[:, 3], "mo-", label = "matlab")
 # it is usefull to see a tol:tol[-1] line to see how the tolerance vs accuracy is working
 loglog([10.0^-i for i in 2:10], [10.0^(1 - i) for i in 2:10] , ":g")
 xlabel("tol")
@@ -78,9 +79,9 @@ legend(loc = 2)
 
 subplot(133)
 loglog(tols, data_de'[:, 3], label = "aode")
-loglog(tols, data_o'[:, 3], "--k", label = "ode45")
-loglog(tols, data_sp'[:, 3], "-.r", label = "sp")
-loglog(data_ml[:, 1], data_ml[:, 4], "m", label = "matlab")
+loglog(tols, data_o'[:, 3], "ko--", label = "ode45")
+loglog(tols, data_sp'[:, 3], "ro-.", label = "sp")
+loglog(data_ml[:, 1], data_ml[:, 4], "mo-", label = "matlab")
 # it is usefull to see a tol:tol[-1] line to see how the tolerance vs accuracy is working
 loglog([10.0^-i for i in 2:10], [10.0^(1 - i) for i in 2:10] , ":g")
 xlabel("tol")
