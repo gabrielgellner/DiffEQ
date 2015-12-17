@@ -199,7 +199,7 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
             steps[2] += 1
             dt = newdt
             # after step reduction do not increase step for `5` steps
-            sys.work.timeout = 0
+            sys.work.timeout = 5
         end
     end
     return dts, errs, steps
@@ -302,7 +302,9 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
         # if outside of domain (usually NaN) then make step size smaller by maximum
         if isoutofdomain(sys.work.ytrial[d]) # this code is not in fortran version, though it might be suggested in the book. Check
             #NOTE 10.0 is the returned err, the timeout is the 5
-            return 10.0, dt*facmin, 0
+            return 10.0, dt*facmin, 5
+            #TODO: having the timeout of 5 is not clearly something done in the fotran version
+            #return 10.0, dt*facmin, 0
         end
         # rescale yerr by abstol + reltol*max(abs(y0), abs(y1)) which is called
         sys.work.yerr[d] = sys.work.yerr[d]/(abstol + max(norm(sys.work.yinit[d]), norm(sys.work.ytrial[d]))*reltol) # Eq 4.10
