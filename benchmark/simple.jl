@@ -29,12 +29,13 @@ i = 0
 @time t, y = ode45(f, [0.0, 1.0, 1.0], tout; reltol = 1e-4, abstol = 1e-4, points = :specified)
 println("ode45: $i")
 
-# two ref runs from matlab 2015b ... notice the error
-#refsol = [-0.705810884230406, -0.708700436943760, 0.863899310414768]
-reft = 11.993999399939995
-refsol = [-0.701710883180149, -0.712461813852860, 0.865376759827586]
+# two ref runs from matlab 2015b
+reft = 12.0
+refsol = [-0.7053978095223071, -0.7088116324672561, 0.863846690370256]
+#reft = 11.993999399939995
+#refsol = [-0.701710883180149, -0.712461813852860, 0.865376759827586]
 
 println("Compare:")
 println("ref:   ", reft, refsol)
-println("aode:  ", sol.x[end - 5], sol.y[end - 5, :])
-println("ode45: ", t[end - 5], y[end - 5])
+println("aode:  ", sol.x[end - 0], sol.y[end - 0, :])
+println("ode45: ", t[end - 0], y[end - 0])

@@ -6,7 +6,7 @@
 # Adaptive Runge-Kutta methods
 ##############################
 #NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
-##TODO: get rid of the kwargs... and be explicit
+##TODO: get rid of the `kwargs...` and be explicit
 aode(sys::Dopri54, tspan; kwargs...) = rksolver_array(sys, tspan, bt_dopri54; kwargs...)
 dode(sys::Dopri54, tspan; kwargs...) = rksolver_dense(sys, tspan, bt_dopri54; kwargs...)
 
@@ -20,7 +20,13 @@ function rksolver_array(sys::RungeKuttaSystem,
                         initstep = 0.0
                         )
     # parameters
-    order = minimum(btab.order) #TODO: why is the order the minimum?
+    # the dopri5.f code seems to use the maximum not the minimum -- whereas `ODE.jl` uses
+    # the formulas from the book which use the minimum. This needs to be resolved. It seems
+    # toe be an issue when using embedded methods whether to use the larger or smaller
+    # order method for extrapolation, though teh dormand prince pairs where specifically
+    # designed for the larger pairs being used for extrapolation to be less problamatic
+    # (as described in the Butcher 2008 book)
+    order = maximum(btab.order)
 
     ## Initialization
     t = tspan[1]
@@ -34,11 +40,11 @@ function rksolver_array(sys::RungeKuttaSystem,
     nsteps_fixed = length(tspan)
     ##Note: it is more column major to think of an array of points joined along
     ## columns. When returned it must be transposed.
-    ys = Array{Float64}(sys.work.ndim, nsteps_fixed)
+    ys = Array{Float64}(sys.work.ydim, nsteps_fixed)
     ys[:, 1] = sys.y0
 
     # Time
-    dt, tdir, sys.work.ks[:, 1] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = f0
+    dt, tdir = hinit!(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = f0
     if initstep != 0
         dt = sign(initstep) == tdir ? initstep : error("initstep has wrong sign.")
     end
@@ -59,7 +65,8 @@ function rksolver_dense(sys::RungeKuttaSystem,
                         initstep = 0.0
                         )
     # parameters
-    order = minimum(btab.order) # it might be worth adding this as a field to the btab
+    #orginally minimum, but the dopri5.f seems to use maximum as would be expected for the method
+    order = maximum(btab.order) # it might be worth adding this as a field to the btab
 
     ## Initialization
     if length(tspan) > 2
@@ -74,12 +81,12 @@ function rksolver_dense(sys::RungeKuttaSystem,
     sys.work.yinit = copy(sys.y0)
 
     # ys is an array of arrays so that it can grow as needed, this will be
-    # converted to an array (table: nsteps x ndim array) at output
+    # converted to an array (table: nsteps x ydim array) at output
     ys = Array{Float64, 1}[copy(sys.y0)]
-    fs = Any[] # this is an array of (ndim x 7)-arrays
+    fs = Any[] # this is an array of (ydim x 7)-arrays
 
     # Time
-    dt, tdir, sys.work.ks[:, 1] = hinit(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = func(y0)
+    dt, tdir = hinit!(sys, tstart, tend, order, reltol, abstol) # sets ks[:, 1] = func(y0)
     if initstep != 0
         dt = sign(initstep) == tdir ? initstep : error("initstep has wrong sign.")
     end
@@ -94,82 +101,81 @@ end
 
 # estimator for initial step based on book
 # "Solving Ordinary Differential Equations I" by Hairer et al., p.169
-function hinit(sys::AbstractODESystem, tstart, tend, order, reltol, abstol)
+function hinit!(sys::AbstractODESystem, tstart, tend, order, reltol, abstol)
     # Returns first step, direction of integration and F evaluated at t0
     tdir = sign(tend - tstart)
-    tdir == 0 && error("Zero time span")
+    tdir == 0 && error("Zero time span") ##TODO: this is likely a floating point comparision so seems strange
+
+    # we use the norm(a, Inf) instead of complex uses of sums and sqrt(x^2)
+    # transforms to simulate the same thing like in the fotran code
     tau = max(reltol*norm(sys.work.yinit, Inf), abstol)
     d0 = norm(sys.work.yinit, Inf)/tau
     f0 = sys.func(tstart, sys.work.yinit)
     d1 = norm(f0, Inf)/tau
+    #the fortran code uses 1e-10 for both but since we are using norms instead
+    # of taking sqrt(x^2) this is equivalent
     if d0 < 1e-5 || d1 < 1e-5
         h0 = 1e-6
     else
         h0 = 0.01*(d0/d1)
     end
+
     # perform Euler step
     x1 = sys.work.yinit + tdir*h0*f0
     f1 = sys.func(tstart + tdir*h0, x1)
+
     # estimate second derivative
     d2 = norm(f1 - f0, Inf)/(tau*h0)
     if max(d1, d2) <= 1e-15
         h1 = max(1e-6, 1e-3*h0)
     else
-        pow = -(2.0 + log10(max(d1, d2)))/(order + 1.0)
+        # fortran code uses (0.01/max(d1, d2))^(1/order)
+        # which is the same ... but is one better numerically?
+        pow = -(2.0 + log10(max(d1, d2)))/order
         h1 = 10.0^pow
     end
-    return tdir*min(100*h0, h1, tdir*(tend - tstart)), tdir, f0
+    # set the first stage
+    sys.work.ks[:, 1] = f0
+    return tdir*min(100*h0, h1, tdir*(tend - tstart)), tdir
 end
 
-##TODO: it might make more sense just to pass the {N, S} instead of using type generic for it
 function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, btab::TableauRKExplicit, order, abstol, reltol, minstep, maxstep, norm, output_func!::Function)
-    # after step reduction do not increase step for `timeout_const` steps
-    const timeout_const = 5
-
     # Diagnostics
     dts = Float64[]
     errs = Float64[]
     steps = [0, 0]  # [accepted, rejected]
 
     ## Integration loop
-    nout = size(ys, 2) # needed for array_output
-    islaststep = abs(t + dt - tend) <= eps(tend) ? true : false
-    timeout = 0 # for step-control
+    sys.work.laststep = abs(t + dt - tend) <= eps(tend) ? true : false
+    sys.work.timeout = 0 # for step-control calming, this does not seem to be in the original fortran codes
     sys.work.out_i = 2 # the index into tout and ys
     while true
         # do one step (assumes ks[1, :] == f0)
         rk_embedded_step!(sys, t, dt, btab)
         # Check error and find a new step size:
-        err, newdt, timeout = stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, norm)
+        err, newdt = stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
 
         if err <= 1.0 # accept step
-            # diagnostics
+            ## diagnostics
             steps[1] += 1
             push!(dts, dt)
             push!(errs, err)
 
-            # Output:
-            ##NOTE in `ODE.jl` as they are using array of arrays which means the line
-            ## f0 = ks[1] is a view not a copy
-            ##TODO: not sure I need these definitions of f0, f1, if I continue to not
-            ## go for the full generality of the `ODE.jl` and focus on given methods
-            ## as for my dopri5 codes f0 -> sys.work.ks[:, 1] and f1 -> sys.work.ks[:, 7]
-            #f0 = sub(sys.work.ks, :, 1)
-            # FSAL -> First Same As Last
-            #f1 = isfsal(btab) ? sub(sys.work.ks, :, btab.nstages) : sys.func(t + dt, sys.work.ytrial)
+            ##TODO:
+            ## Stiffness Detection
+
+            ## Output:
             # setup interpolating coefficients
             setup_hermite!(sys, dt)
             # output/save step
-            output_func!(sys, ys, fs, tout, t, dt, nout, islaststep)
+            output_func!(sys, ys, fs, tout, t, dt)
 
-            ####################################################################
-            # prepare for next iteration
-            ####################################################################
-            #sys.work.ks[:, 1] = f1 # load hs[:, 1] == f0 for next step
+            ## Prepare for next iteration
+            # we are only using methods with the FSAL (first same as last) property
             sys.work.ks[:, 1] = sys.work.ks[:, 7] # load ks[:, 1] == f0 for next step
 
             # Break (end integration loop) if this was the last step:
-            islaststep && break
+            islaststep(sys) && break
 
             # Swap bindings of y and ytrial, avoids one copy
             sys.work.yinit, sys.work.ytrial = sys.work.ytrial, sys.work.yinit
@@ -181,17 +187,19 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
             # Hit end point exactly if next step within 1% of end:
             if tdir*(t + dt*1.01) >= tdir*tend
                 dt = tend - t
-                islaststep = true # next step is the last, if it succeeds
+                sys.work.laststep = true # next step is the last, if it succeeds
             end
         elseif abs(newdt) < minstep  # minimum step size reached, break
-            ##TODO; make this a real error, this is likely the "stiffness" check from the original code. Compare and give a meaningful error name if so
+            ##TODO; make this a real error: not clear that giving back partial
+            ## broken information is a good procedure
             println("Warning: dt < minstep.  Stopping.")
             break
-        else # redo step with smaller dt
-            islaststep = false
+        else # step failed: redo step with smaller dt
+            sys.work.laststep = false
             steps[2] += 1
             dt = newdt
-            timeout = timeout_const
+            # after step reduction do not increase step for `5` steps
+            sys.work.timeout = 5
         end
     end
     return dts, errs, steps
@@ -199,21 +207,17 @@ end
 
 ##TODO: I have broken the tdir variable, so I need to add checks for
 ## integrating in reverse
-function rk_array_output!(sys, ys, fs, tspan, t, dt, nout, islaststep)
-    # interpolate onto requested times in (t, t + dt)
-    ##TODO: I am missing the last timestep
-    ## we need out_i - 1 < nout so that we don't have infinite loop at laststep
-    while sys.work.out_i - 1 < nout && (tspan[sys.work.out_i] < t + dt || islaststep)
-        # TODO: 3rd order only!
-        #hermite_interp!(sub(ys, :, sys.work.out_i), tspan[sys.work.out_i], t, dt, sys.work.yinit, sys.work.ytrial, f0, f1)
+function rk_array_output!(sys, ys, fs, tspan, t, dt)
+    ## interpolate onto requested times in (t, t + dt)
+    # we need out_i - 1 < nout so that we don't have infinite loop at laststep
+    nout = size(ys, 2)
+    while sys.work.out_i - 1 < nout && (tspan[sys.work.out_i] < t + dt || islaststep(sys))
         hermite_shampine_interp!(sub(ys, :, sys.work.out_i), tspan[sys.work.out_i], t, dt, sub(sys.work.ycont, :, :))
         sys.work.out_i += 1
     end
 end
 
-##TODO: currently I have to pass in nout and islaststep because of the array_output
-## find out how to avoid this
-function rk_dense_output!(sys, ys, fs, tout, t, dt, nout, islaststep)
+function rk_dense_output!(sys, ys, fs, tout, t, dt)
     push!(ys, deepcopy(sys.work.ytrial))
     push!(tout, t + dt)
     # Also save the hermite coefficients
@@ -229,24 +233,29 @@ function rk_embedded_step!(sys, t, dt, btab::TableauRKExplicit)
     ##NOTE: currently hard coded to be Float64
     fill!(sys.work.ytrial, 0.0)
     fill!(sys.work.yerr, 0.0)
-    for d = 1:sys.work.ndim
+    for d = 1:sys.work.ydim
         sys.work.ytrial[d] += btab.b[1, 1]*sys.work.ks[d, 1]
         sys.work.yerr[d] += btab.b[2 ,1]*sys.work.ks[d, 1]
     end
     for s = 2:btab.nstages
         calc_next_k!(sys, s, t, dt, btab)
-        for d = 1:sys.work.ndim
+        for d = 1:sys.work.ydim
+            ##TODO: this might be a source of a slowdown, as it is better to access
+            ## btab.b by the rows not across the columns. See about changing this.
             sys.work.ytrial[d] += btab.b[1, s]*sys.work.ks[d, s]
             sys.work.yerr[d] += btab.b[2, s]*sys.work.ks[d, s]
         end
     end
-    for d = 1:sys.work.ndim
+    for d = 1:sys.work.ydim
+        # here we set yerr to the difference between the higher order method `ytrial`
+        # and the lower order embeded method (which has been put in `yerr` in the previous
+        # steps, but gets overwritten with the difference here) and the stepsize.
         sys.work.yerr[d] = dt*(sys.work.ytrial[d] - sys.work.yerr[d])
         sys.work.ytrial[d] = sys.work.yinit[d] + dt*sys.work.ytrial[d]
     end
 end
 
-function stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, norm)
+function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     # Estimates the error and a new step size following Hairer &
     # Wanner 1992, p167 (with some modifications)
     #
@@ -257,32 +266,71 @@ function stepsize_hw92!(sys, dt, tdir, order, timeout, abstol, reltol, maxstep, 
     #
     # TODO:
     # - allow component-wise reltol and abstol?
-    timout_after_nan = 5
-    ##TODO: this is a very complicated way to calculate 0.8 ;)
-    fac = [0.8, 0.9, 0.25^(1/(order + 1)), 0.38^(1/(order + 1))][1]
-    facmax = 5.0 # maximal step size increase. 1.5-5
+    #NOTE: fac is the stepsize scaling safety fac(tor), it is used so that the steps do
+    # not grow or shrink to much
+    ##TODO: fortran code has EXPO1 = 1/8, SAFE = 0.9, FAC1 = 0.2, FAC2 = 10,
+    ## FACC1 = 1/FAC1, FACC2 = 1/FAC2
+    ## and FAC1 <= HNEW/H <= FAC2
+    ## which means:
+    ## facmax = FACC1 = 1/FAC1 = 1/0.2 = 5.0
+    ## facmin = FACC2 = 1/FAC1 = 1/10 = 0.1 (whereas we have 1/0.8 = 1.25)
+
+    ##TODO: this is a very complicated way to calculate 0.8 ;) These are all the possible
+    # safety factors listed in Hairer and Wanner, but the Dopri5.f codes just uses the 0.9
+    # Just leave this as a comment for now, maybe in future versions it
+    # would be worth having this as a selectable option? Scipy makes this an option, and it
+    # looks like it is an option in the orignal fortran as well the IWORK[1] setting
+    #fac = [0.8, 0.9, 0.25^(1/order), 0.38^(1/order)][1]
+    # it wold seem that larger values run the risk of less accurate answers for less cpu
+    # time. The 0.8 default is a conservative measure that goes for accuracy over speed.
+    fac = 0.8
+    facmax = 5.0 # maximal step size increase. 1.5 - 5
     facmin = 1.0/facmax  # maximal step size decrease. ?
 
-    # in-place calculate xerr./tol
-    for d = 1:sys.work.ndim
+    # The error used for step size selection in Hairer and Wanner uses the following
+    # "norm"
+    # err = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(\frac{y_{1i} - \yhat{y_{1i}}}{sc_i}^2)}
+    # with sc_i = atol_i + \max(\abs(y_{0i}), \abs(y_{1i}))*rtol_i
+    # which in terms of norms can be seen as
+    # err = norm((y1[i] - yhat1[i])/sci)/sqrt(n) for i in 1:n
+    # and I think yerr is equal to y1[i] - yhat1[i] that is it is the difference between
+    # the lower and higher order method prediction
+
+    # in-place calculate yerr./tol
+    for d = 1:sys.work.ydim
+        ##TODO: this is not a "usually NaN" as: isoutofdomain(x) = isnan(x) maybe this was a place holder?
         # if outside of domain (usually NaN) then make step size smaller by maximum
-        isoutofdomain(sys.work.ytrial[d]) && return 10.0, dt*facmin, timout_after_nan
+        if isoutofdomain(sys.work.ytrial[d]) # this code is not in fortran version, though it might be suggested in the book. Check
+            #NOTE 10.0 is the returned err, the timeout is the 5
+            return 10.0, dt*facmin, 5
+            #TODO: having the timeout of 5 is not clearly something done in the fotran version
+            #return 10.0, dt*facmin, 0
+        end
+        # rescale yerr by abstol + reltol*max(abs(y0), abs(y1)) which is called
         sys.work.yerr[d] = sys.work.yerr[d]/(abstol + max(norm(sys.work.yinit[d]), norm(sys.work.ytrial[d]))*reltol) # Eq 4.10
     end
-    err = norm(sys.work.yerr, 2) # Eq. 4.11
-    newdt = min(maxstep, tdir*dt*max(facmin, fac*(1/err)^(1/(order + 1)))) # Eq 4.13 modified
-    if timeout > 0
+    ##TODO: the error formula Eq. 4.11 in the book has an extra scaling of
+    ## 1/sqrt(ydim)
+    err = norm(sys.work.yerr) #/sqrt(sys.work.ydim) # Eq. 4.11
+    ##TODO: fortran code has:
+    # FAC = ERR^EXP01 = ERR^(1/8)
+    # FAC = max(FACC2, min(FACC1, FAC/SAFE))
+    # HNEW = H/FAC
+    # The book has:
+    # h_new = h*min(facmax, max(facmin, fac*(1/err)^(1/(q + 1))))
+    newdt = min(maxstep, tdir*dt*max(facmin, fac*(1/err)^(1/order))) # Eq 4.13 modified
+    if sys.work.timeout > 0
         newdt = min(newdt, dt)
-        timeout -= 1
+        sys.work.timeout -= 1
     end
-    return err, tdir*newdt, timeout
+    return err, tdir*newdt
 end
 
-function calc_next_k!(sys, s, t, dt, btab)
+function calc_next_k!(sys, s::Integer, t, dt, btab)
     # Calculates the next ks and puts it into ks[s, :]
     # - ks and ytmp are modified inside this function.
-    sys.work.ytmp[:] = sys.work.yinit
-    for ss = 1:(s - 1), d = 1:sys.work.ndim
+    sys.work.ytmp[:] = sys.work.yinit #TODO: does this line copy?
+    for ss = 1:(s - 1), d = 1:sys.work.ydim
         sys.work.ytmp[d] += dt*sys.work.ks[d, ss]*btab.a[s, ss]
     end
     sys.work.ks[:, s] = sys.func(t + btab.c[s]*dt, sys.work.ytmp)

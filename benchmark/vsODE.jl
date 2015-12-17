@@ -28,5 +28,5 @@ i = 0
 @time t2, sol2 = ode45(f, [1.0, 0.0, 0.0], tout; abstol=1e-8, reltol=1e-8, maxstep=1e11/10, minstep=1e11/1e18, points = :specified);
 println("ode45: $i")
 
-println(sol.y[end, :])
-println(sol2[end])
+println("aode:  ", sol.y[end, :])
+println("ode45: ", sol2[end])
