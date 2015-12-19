@@ -1,7 +1,7 @@
 module DiffEQ
 
 export aode, dode
-export Dopri54
+export Dopri54, RKOptions
 
 include("types.jl")
 include("dense_output.jl")
