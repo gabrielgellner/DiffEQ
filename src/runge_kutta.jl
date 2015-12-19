@@ -16,7 +16,7 @@ function rksolver_array(sys::RungeKuttaSystem,
                         reltol = 1.0e-5,
                         abstol = 1.0e-8,
                         minstep = abs(tspan[end] - tspan[1])/1e18,
-                        maxstep = abs(tspan[end] - tspan[1])/2.5,
+                        maxstep = abs(tspan[end] - tspan[1])/2.5, # matlab uses 0.1*abs(t0-tf)}
                         initstep = 0.0
                         )
     # parameters
@@ -62,7 +62,7 @@ function rksolver_dense(sys::RungeKuttaSystem,
                         reltol = 1.0e-5,
                         abstol = 1.0e-8,
                         minstep = abs(tspan[end] - tspan[1])/1e18,
-                        maxstep = abs(tspan[end] - tspan[1])/2.5,
+                        maxstep = abs(tspan[end] - tspan[1])/2.5, # matlab uses 0.1*abs(t0-tf)}
                         initstep = 0.0
                         )
     # parameters
@@ -324,7 +324,8 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     # HNEW = H/FAC
     # The book has:
     # h_new = h*min(facmax, max(facmin, fac*(1/err)^(1/(q + 1))))
-    newdt = min(maxstep, tdir*dt*max(facmin, fac*(1/err)^(1/order))) # Eq 4.13 modified
+    # so we are changing t his so that instead of using h*facmax we are using maxstep for the maximum stepsize
+    newdt = min(maxstep, tdir*n                                                n               dt*max(facmin, fac*(1/err)^(1/order))) # Eq 4.13 modified
     if sys.work.timeout > 0
         # if in a cooldown then we should just take the last stepsize. This instead takes the smaller of the new
         # stepsize and the last stepsize. So really this cooldown is to make sure larger steps aren't taken.
