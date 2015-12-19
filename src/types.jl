@@ -73,11 +73,10 @@ type Dopri54 <: RungeKuttaSystem
     ##TODO: I shouln't let ndim change
     func::Function
     y0::Array{Float64, 1}
-    options::RKOptions
     work::RKWorkspace
 end
 
-function Dopri54(func::Function, y0::Array{Float64, 1}, options::RKOptions = RK)
+function Dopri54(func::Function, y0::Array{Float64, 1})
     #I have hard coded the stages into this `7` I think this makes the most
     #sense as each RK type will need to have its own constructor like this,
     #so a parametric type isn't needed.
@@ -85,7 +84,6 @@ function Dopri54(func::Function, y0::Array{Float64, 1}, options::RKOptions = RK)
     Dopri54(
         func, # dydt
         y0, # y0
-        options, # options for solver
         RKWorkspace(
             ydim, #ndim
             Array{Float64}(ydim, 7), #ks
