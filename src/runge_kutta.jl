@@ -50,10 +50,6 @@ function rksolver_array(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, o
 end
 
 function rksolver_dense(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, options::RKOptions, btab::TableauRKExplicit)
-    # parameters
-    #orginally minimum, but the dopri5.f seems to use maximum as would be expected for the method
-    #order = maximum(btab.order) # it might be worth adding this as a field to the btab
-
     ## Initialization
     if length(tspan) > 2
         error("Dense output requires tspan to be two points (tstart, tend).")
@@ -127,7 +123,7 @@ function hinit!(sys::AbstractODESystem, options::RKOptions)
     sys.work.dt = sys.work.tdir*min(100*h0, h1, sys.work.tdir*(sys.work.tend - sys.work.tstart))
 end
 
-function rk_stepper!(sys::RungeKuttaSystem, tspan, ys, fs, options::RKOptions, btab::TableauRKExplicit, output_func!::Function)
+function rk_stepper!(sys::RungeKuttaSystem, tout, ys, fs, options::RKOptions, btab::TableauRKExplicit, output_func!::Function)
     # Diagnostics
     dts = Float64[]
     errs = Float64[]
@@ -141,7 +137,7 @@ function rk_stepper!(sys::RungeKuttaSystem, tspan, ys, fs, options::RKOptions, b
     sys.work.basetimeout = 4 # 4 seems to work well
     sys.work.timeout = sys.work.basetimeout # ODE.jl uses 0, but this can cause the solver to have terrible accuracy at low tolerences. 4 seems to work well.
     sys.work.laststep = abs(sys.work.tstart + sys.work.dt - sys.work.tend) <= eps(sys.work.tend) ? true : false
-    sys.work.out_i = 2 # the index into tspan and ys
+    sys.work.out_i = 2 # the index into tout and ys
     while true
         # do one step (assumes ks[:, 1] == f0)
         rk_embedded_step!(sys, btab)
@@ -161,7 +157,7 @@ function rk_stepper!(sys::RungeKuttaSystem, tspan, ys, fs, options::RKOptions, b
             # setup interpolating coefficients
             setup_hermite!(sys)
             # output/save step
-            output_func!(sys, ys, fs, tspan)
+            output_func!(sys, ys, fs, tout)
 
             ## Prepare for next iteration
             # we are only using methods with the FSAL (first same as last) property
@@ -200,21 +196,21 @@ end
 
 ##TODO: I have broken the tdir variable, so I need to add checks for
 ## integrating in reverse
-function rk_array_output!(sys, ys, fs, tspan)
+function rk_array_output!(sys, ys, fs, tout)
     ## interpolate onto requested times in (t, t + dt)
     # we need out_i - 1 < nout so that we don't have infinite loop at laststep
     nout = size(ys, 2)
-    while sys.work.out_i - 1 < nout && (tspan[sys.work.out_i] < sys.work.tstart + sys.work.dt || islaststep(sys))
-        hermite_shampine_interp!(sub(ys, :, sys.work.out_i), tspan[sys.work.out_i], sys.work.tstart, sys.work.dt, sub(sys.work.ycont, :, :))
+    while sys.work.out_i - 1 < nout && (tout[sys.work.out_i] < sys.work.tstart + sys.work.dt || islaststep(sys))
+        hermite_shampine_interp!(sub(ys, :, sys.work.out_i), tout[sys.work.out_i], sys.work.tstart, sys.work.dt, sub(sys.work.ycont, :, :))
         sys.work.out_i += 1
     end
 
     return nothing
 end
 
-function rk_dense_output!(sys, ys, fs, tspan)
+function rk_dense_output!(sys, ys, fs, tout)
     push!(ys, deepcopy(sys.work.ytrial))
-    push!(tspan, sys.work.tstart + sys.work.dt)
+    push!(tout, sys.work.tstart + sys.work.dt)
     # Also save the hermite coefficients
     push!(fs, deepcopy(sys.work.ycont))
 
