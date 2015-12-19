@@ -325,7 +325,7 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     # The book has:
     # h_new = h*min(facmax, max(facmin, fac*(1/err)^(1/(q + 1))))
     # so we are changing t his so that instead of using h*facmax we are using maxstep for the maximum stepsize
-    newdt = min(maxstep, tdir*n                                                n               dt*max(facmin, fac*(1/err)^(1/order))) # Eq 4.13 modified
+    newdt = min(maxstep, tdir*dt*max(facmin, fac*(1/err)^(1/order))) # Eq 4.13 modified
     if sys.work.timeout > 0
         # if in a cooldown then we should just take the last stepsize. This instead takes the smaller of the new
         # stepsize and the last stepsize. So really this cooldown is to make sure larger steps aren't taken.
