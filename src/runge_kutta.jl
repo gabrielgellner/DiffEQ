@@ -153,11 +153,11 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
     # this is not in the original dopri5.f code, and seems to be similar to the fac/facmin code that controls changes
     # in the stepsize. I need to learn about best practices for this.
     sys.work.basetimeout = 4 # 4 seems to work well
-    sys.work.laststep = abs(t + dt - tend) <= eps(tend) ? true : false
     sys.work.timeout = sys.work.basetimeout # ODE.jl uses 0, but this can cause the solver to have terrible accuracy at low tolerences. 4 seems to work well.
+    sys.work.laststep = abs(t + dt - tend) <= eps(tend) ? true : false
     sys.work.out_i = 2 # the index into tout and ys
     while true
-        # do one step (assumes ks[1, :] == f0)
+        # do one step (assumes ks[:, 1] == f0)
         rk_embedded_step!(sys, t, dt, btab)
         # Check error and find a new step size:
         err, newdt = stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
@@ -203,7 +203,7 @@ function rk_stepper!(sys::RungeKuttaSystem, t, dt, tdir, tend, tout, ys, fs, bta
             break
         else # step failed: redo step with smaller dt
             sys.work.laststep = false
-            steps[2] += 1
+            steps[2] += 1 # increment nfailed steps
             dt = newdt
             # after step reduction do not increase step for `timeout` steps
             sys.work.timeout = sys.work.basetimeout
@@ -269,7 +269,7 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     # If timeout > 0 no step size increase is allowed, timeout is
     # decremented in here.
     #
-    # Returns the error, newdt and the number of timeout-steps
+    # Returns the error, newdt
     #
     # TODO:
     # - allow component-wise reltol and abstol?
@@ -290,7 +290,7 @@ function stepsize_hw92!(sys, dt, tdir, order, abstol, reltol, maxstep, norm)
     #fac = [0.8, 0.9, 0.25^(1/order), 0.38^(1/order)][1]
     # it wold seem that larger values run the risk of less accurate answers for less cpu
     # time. The 0.8 default is a conservative measure that goes for accuracy over speed.
-    fac = 0.25^(1/5)
+    fac = 0.25^(1/5) # ~ 0.7578
     facmax = 5.0 # maximal step size increase. 1.5 - 5
     facmin = 0.1 #1.0/facmax  # maximal step size decrease. ?
 
