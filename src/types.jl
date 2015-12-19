@@ -39,6 +39,10 @@ type RKWorkspace
     yerr::Array{Float64, 1}
     ytmp::Array{Float64, 1}
     ycont::Array{Float64, 2} # used for dense/continous output
+    tstart::Float64
+    tend::Float64
+    dt::Float64
+    tdir::Int # direction of the time steps (should be 1 or -1)
     out_i::Int # used for fixed size output ##TODO think of a better way
     order::Int # order of the runge-kutta method
     laststep::Bool
@@ -92,6 +96,10 @@ function Dopri54(func::Function, y0::Array{Float64, 1})
             Array{Float64}(ydim), #yerr
             Array{Float64}(ydim), #ytmp
             Array{Float64}(ydim, 5), #ycont 5 comes from the fact that it is 5th order interpolant
+            0.0, # tstart
+            0.0, # tend
+            0, # tdir
+            0.0, # dt
             0, #out_i
             5, #order
             false, #laststep

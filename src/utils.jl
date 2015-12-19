@@ -16,14 +16,14 @@ const hermite_shampine_coef = [
     69997945/29380423
 ]
 
-function setup_hermite!(sys, dt)
+function setup_hermite!(sys)
     ydiff = sys.work.ytrial - sys.work.yinit
-    bspl = dt*sub(sys.work.ks, :, 1) - ydiff
+    bspl = sys.work.dt*sub(sys.work.ks, :, 1) - ydiff
     sys.work.ycont[:, 1] = sys.work.yinit
     sys.work.ycont[:, 2] = ydiff
     sys.work.ycont[:, 3] = bspl
-    sys.work.ycont[:, 4] = -dt*sub(sys.work.ks, :, 7) + ydiff - bspl
-    sys.work.ycont[:, 5] = dt*sys.work.ks*hermite_shampine_coef
+    sys.work.ycont[:, 4] = -sys.work.dt*sub(sys.work.ks, :, 7) + ydiff - bspl
+    sys.work.ycont[:, 5] = sys.work.dt*sys.work.ks*hermite_shampine_coef
     return nothing
 end
 
