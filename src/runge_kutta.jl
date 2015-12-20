@@ -34,7 +34,7 @@ function rksolver_array(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, o
     ##Note: it is more column major to think of an array of points joined along
     ## columns. When returned it must be transposed.
     ys = Array{Float64}(sys.work.ydim, nsteps_fixed)
-    ys[:, 1] = sys.y0
+    ys[:, 1] = copy(sys.y0)
 
     # Time
     hinit!(sys, options) # initialize sys.work using an euler step
@@ -81,6 +81,8 @@ function rksolver_dense(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, o
     return DenseODESolution(tout, hcat(ys...), fs)
 end
 
+##TODO: the naming conventions in this function are totally different then in the rest of the code: ie h instead of dt
+## y instead of f etc
 # estimator for initial step based on book
 # "Solving Ordinary Differential Equations I" by Hairer et al., p.169
 function hinit!(sys::AbstractODESystem, options::RKOptions)
@@ -296,8 +298,8 @@ function stepsize_hw92!(sys, options)
         ##TODO: this is not a "usually NaN" as: isoutofdomain(x) = isnan(x) maybe this was a place holder?
         # if outside of domain (usually NaN) then make step size smaller by maximum
         if isoutofdomain(sys.work.ytrial[d]) # this code is not in fortran version, though it might be suggested in the book. Check
-            #NOTE 10.0 is the returned err
-            sys.work.timeout = sys.work.basetimeout
+            #NOTE 10.0 is the returned err > 1.0 therefore it is a failed step.
+            # Returning dt*facmin gives the smallest step decrease possible
             return 10.0, sys.work.dt*facmin
         end
         # rescale yerr by abstol + reltol*max(abs(y0), abs(y1)) which is called
