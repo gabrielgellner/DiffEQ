@@ -8,9 +8,22 @@
 #NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
 ##TODO: get rid of the `kwargs...` and be explicit
 aode(sys::Dopri54, tspan, options::RKOptions) = rksolver_array(sys, tspan, options, bt_dopri54)
-aode(sys::Dopri54, tspan; kwargs...) = rksolver_array(sys, tspan, RKOptions(;kwargs...), bt_dopri54)
+aode(sys::Dopri54, tspan;
+     reltol = 1.0e-5,
+     abstol = 1.0e-8,
+     maxstep = 0.1*abs(tspan[end] - tspan[1]),
+     minstep = abs(tspan[end] - tspan[1])/1e18,
+     initstep = 0.0
+     ) = rksolver_array(sys, tspan, RKOptions(reltol, abstol, maxstep, minstep, initstep), bt_dopri54)
+
 dode(sys::Dopri54, tspan, options::RKOptions) = rksolver_dense(sys, tspan, options, bt_dopri54)
-dode(sys::Dopri54, tspan; kwargs...) = rksolver_dense(sys, tspan, RKOptions(;kwargs...), bt_dopri54)
+dode(sys::Dopri54, tspan;
+     reltol = 1.0e-5,
+     abstol = 1.0e-8,
+     maxstep = 0.1*abs(tspan[end] - tspan[1]),
+     minstep = abs(tspan[end] - tspan[1])/1e18,
+     initstep = 0.0
+     ) = rksolver_dense(sys, tspan, RKOptions(reltol, abstol, maxstep, minstep, initstep), bt_dopri54)
 
 function rksolver_array(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, options::RKOptions, btab::TableauRKExplicit)
     # parameters
@@ -136,7 +149,7 @@ function rk_stepper!(sys::RungeKuttaSystem, tout, ys, fs, options::RKOptions, bt
     # basetimeout is the length of the timeout once it is triggered.
     # this is not in the original dopri5.f code, and seems to be similar to the fac/facmin code that controls changes
     # in the stepsize. I need to learn about best practices for this.
-    sys.work.basetimeout = 4 # 4 seems to work well
+    sys.work.basetimeout = 0 # 4 seems to work well
     sys.work.timeout = sys.work.basetimeout # ODE.jl uses 0, but this can cause the solver to have terrible accuracy at low tolerences. 4 seems to work well.
     sys.work.laststep = abs(sys.work.tstart + sys.work.dt - sys.work.tend) <= eps(sys.work.tend) ? true : false
     sys.work.out_i = 2 # the index into tout and ys
@@ -277,7 +290,7 @@ function stepsize_hw92!(sys, options)
     # Just leave this as a comment for now, maybe in future versions it
     # would be worth having this as a selectable option? Scipy makes this an option, and it
     # looks like it is an option in the orignal fortran as well the IWORK[1] setting
-    #fac = [0.8, 0.9, 0.25^(1/order), 0.38^(1/order)][1]
+    #fac = [0.8, 0.9, 0.25^(1/sys.work.order), 0.38^(1/sys.work.order)][1]
     # it wold seem that larger values run the risk of less accurate answers for less cpu
     # time. The 0.8 default is a conservative measure that goes for accuracy over speed.
     fac = 0.25^(1/5) # ~ 0.7578
@@ -314,8 +327,8 @@ function stepsize_hw92!(sys, options)
     # HNEW = H/FAC
     # The book has:
     # h_new = h*min(facmax, max(facmin, fac*(1/err)^(1/(q + 1))))
-    # so we are changing t his so that instead of using h*facmax we are using maxstep for the maximum stepsize
-    newdt = min(options.maxstep, sys.work.tdir*sys.work.dt*max(facmin, fac*(1/err)^(1/sys.work.order))) # Eq 4.13 modified
+    # so ODE.jl is changing this so that instead of using h*facmax it uses maxstep for the maximum stepsize
+    newdt = sys.work.tdir*sys.work.dt*min(facmax, max(facmin, fac*(1/err)^(1/sys.work.order))) # Eq 4.13
     if sys.work.timeout > 0
         # if in a cooldown then we should just take the last stepsize. This instead takes the smaller of the new
         # stepsize and the last stepsize. So really this cooldown is to make sure larger steps aren't taken.
