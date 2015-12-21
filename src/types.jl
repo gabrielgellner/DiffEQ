@@ -46,8 +46,6 @@ type RKWorkspace
     out_i::Int # used for fixed size output ##TODO think of a better way
     order::Int # order of the runge-kutta method
     laststep::Bool
-    timeout::Int
-    basetimeout::Int
 end
 
 type RKOptions
@@ -101,10 +99,8 @@ function Dopri54(func::Function, y0::Array{Float64, 1})
             0, # tdir
             0.0, # dt
             0, #out_i
-            5, #order
+            5, #orders
             false, #laststep
-            0, #timeout, allow increases in stepsize at beginning,
-            5 #basetimeout is 5
         )
     )
 end

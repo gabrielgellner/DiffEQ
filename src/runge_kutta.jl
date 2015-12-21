@@ -145,12 +145,6 @@ function rk_stepper!(sys::RungeKuttaSystem, tout, ys, fs, options::RKOptions, bt
     steps = [0, 0]  # [accepted, rejected]
 
     ## Integration loop
-    # If sys.work.timeout > 0 then no increases in step size are allowed.
-    # basetimeout is the length of the timeout once it is triggered.
-    # this is not in the original dopri5.f code, and seems to be similar to the fac/facmin code that controls changes
-    # in the stepsize. I need to learn about best practices for this.
-    sys.work.basetimeout = 0 # 4 seems to work well
-    sys.work.timeout = sys.work.basetimeout # ODE.jl uses 0, but this can cause the solver to have terrible accuracy at low tolerences. 4 seems to work well.
     sys.work.laststep = abs(sys.work.tstart + sys.work.dt - sys.work.tend) <= eps(sys.work.tend) ? true : false
     sys.work.out_i = 2 # the index into tout and ys
     while true
@@ -202,8 +196,6 @@ function rk_stepper!(sys::RungeKuttaSystem, tout, ys, fs, options::RKOptions, bt
             sys.work.laststep = false
             steps[2] += 1 # increment nfailed steps
             sys.work.dt = newdt
-            # after step reduction do not increase step for `timeout` steps
-            sys.work.timeout = sys.work.basetimeout
         end
     end
     return dts, errs, steps
@@ -269,9 +261,6 @@ function stepsize_hw92!(sys, options)
     # Estimates the error and a new step size following Hairer &
     # Wanner 1992, p167 (with some modifications)
     #
-    # If timeout > 0 no step size increase is allowed, timeout is
-    # decremented in here.
-    #
     # Returns the error, newdt
     #
     # TODO:
@@ -329,12 +318,6 @@ function stepsize_hw92!(sys, options)
     # h_new = h*min(facmax, max(facmin, fac*(1/err)^(1/(q + 1))))
     # so ODE.jl is changing this so that instead of using h*facmax it uses maxstep for the maximum stepsize
     newdt = sys.work.tdir*sys.work.dt*min(facmax, max(facmin, fac*(1/err)^(1/sys.work.order))) # Eq 4.13
-    if sys.work.timeout > 0
-        # if in a cooldown then we should just take the last stepsize. This instead takes the smaller of the new
-        # stepsize and the last stepsize. So really this cooldown is to make sure larger steps aren't taken.
-        newdt = min(newdt, sys.work.dt)
-        sys.work.timeout -= 1
-    end
     return err, sys.work.tdir*newdt
 end
 
