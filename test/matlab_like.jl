@@ -11,7 +11,8 @@ end
 
 tout = linspace(0.0, 12.0, 10)
 # the matlab version has a vector of absol = [1e-4 1e-4 1e-5]
-sol = aode(Dopri54(f, [0.0, 1.0, 1.0]), tout; reltol = 1e-4, abstol = 1e-4)
+opts = RKOptions(reltol = 1e-4, abstol = 1e-4)
+sol = aode(Dopri54(f, [0.0, 1.0, 1.0]), tout, opts)
 
 refsol = [-0.705810884230406, -0.708700436943760, 0.863899310414768]
 

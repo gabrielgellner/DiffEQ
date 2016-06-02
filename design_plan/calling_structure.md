@@ -13,7 +13,8 @@ For the first case it is not clear to me is what points are returned if the
 further thinking version 1) is silly to implement. What does it by you vs the
 explicit version `linspace(tstart, tend, nsteps)` or similarly `tstart:stepsize:tend`
 as both of these are `AbstractArray` types in Julia I have no need to support
-the earlier Matlab syntax.
+the earlier Matlab syntax. [Update: it buys you potential speed since you aren't doing
+and interpolation between the steps, just taking the solver chosen time steps]
 
 For a different look using `NDSolve` in Mathematica returns an interpolating
 function instead of an array of values. You are then responsible for calling
@@ -24,7 +25,10 @@ I do like the idea of a version that will return such an object for use.
 In truth if the `[tstart, tend]` version is used I should really only return
 the Mathematica like object as it is kind of crazy otherwise (why would I
 possibly want and array of the natural adaptive steps?). Really what I want
-from this form is the dense output.
+from this form is the dense output. [Update: not true, I might not care about the
+exact time steps, so the underlying grid could be find (for plotting for example). Maybe
+I just need a type that does interpolation if indexed off grid? I am still not sure how
+the api should express this simple case.]
 
 Also from my days as a Fortran user I really miss the ability to just call the
 the solver for a single step inside a loop. I wonder if Julia is efficient
@@ -238,3 +242,8 @@ a naked ```aode(Dopri(func, y0), tout)``` would be any worse than allocating the
 memory in the function itself. So this is really an issue of documentation so
 that the user does not pass in a `ODESystem` to a parallel call and not realize
 that this will share memory.
+
+### ODESystem vs Model
+One issue in the current implementation is that I have coupled the solver memory with
+the problem specification. I might want to think about adding a model type as well and
+then have the system have the model as one of its parameters.

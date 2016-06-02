@@ -14,13 +14,15 @@ for i = 1:ntol
 end
 
 data = zeros(ntol, 3);
+nsteps = zeros(ntol, 1);
 for i = 1:ntol
     options = odeset('RelTol', tols(i), 'AbsTol', tols(i));
-    [t, y] = ode45(@rigid, tspan, y0, options);
-    data(i, :) = abs(refsol - y(end, :));
+    sol = ode45(@rigid, tspan, y0, options);
+    nsteps(i) = sol.stats.nsteps;
+    data(i, :) = abs(refsol - deval(sol, tspan(end))');
 end
 
-if 0
+if 1
     loglog(tols, data)
     % add a line showing the minus one exponent of the tolerance to see how
     % the solver is doing for precision
@@ -29,4 +31,4 @@ if 0
     hold off
 end
 
-dlmwrite('matlab_rigid.csv', [tols data], 'precision', 16)
+dlmwrite('../matlab_rigid.csv', [tols data nsteps], 'precision', 16)
