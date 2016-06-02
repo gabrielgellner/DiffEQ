@@ -95,16 +95,16 @@ isfsal(btab::TableauRKExplicit) = btab.fsal
 # implement the Float64 versions.
 
 # Bogacki–Shampine coefficients
-const bt_bs23_base = TableauRKExplicit(:bogacki_shampine, (2, 3), Rational,
-       [0           0      0      0
-        1/2         0      0      0
-        0         3/4      0      0
-        2/9       1/3     4/9     0], # a matrix
-       [7/24 1/4 1/3 1/8
-        2/9 1/3 4/9 0], # b matrix
-       [0, 1//2, 3//4, 1]  # c vector
-)
-const bt_bs23sp = convert(Float32, bt_bs23_base)
+#const bt_bs23_base = TableauRKExplicit(:bogacki_shampine, (2, 3), Rational,
+#        [0           0      0      0
+#         1/2         0      0      0
+#         0         3/4      0      0
+#         2/9       1/3     4/9     0], # a matrix
+#        [7/24 1/4 1/3 1/8
+#         2/9 1/3 4/9 0], # b matrix
+#        [0, 1//2, 3//4, 1]  # c vector
+# )
+# const bt_bs23sp = convert(Float32, bt_bs23_base)
 
 # Dormand-Prince https://en.wikipedia.org/wiki/Dormand%E2%80%93Prince_method
 const bt_dopri54_base = TableauRKExplicit(:dopri54, (5, 4), Rational,
