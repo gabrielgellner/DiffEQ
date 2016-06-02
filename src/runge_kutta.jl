@@ -55,15 +55,6 @@ dode(sys::Dopri54, tspan;
      ) = rksolver_dense(sys, tspan, RKOptions(reltol, abstol, maxstep, minstep, initstep), tab_dopri54)
 
 function rksolver_array(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, options::RKOptions, rktab::RKTableau)
-    # parameters
-    # the dopri5.f code seems to use the maximum not the minimum -- whereas `ODE.jl` uses
-    # the formulas from the book which use the minimum. This needs to be resolved. It seems
-    # to be an issue when using embedded methods whether to use the larger or smaller
-    # order method for extrapolation, though the dormand prince pairs where specifically
-    # designed for the larger pairs being used for extrapolation to be less problamatic
-    # (as described in the Butcher 2008 book)
-    #sys.workspace.order = maximum(rktab.order)
-
     ## Initialization
     sys.work.tstart = tspan[1]
     sys.work.tend = tspan[end]
