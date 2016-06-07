@@ -74,10 +74,17 @@ end
 type Dopri54 <: RungeKuttaSystem
     ##TODO: I shouln't let ndim change
     func::Function
-    y0::Array{Float64, 1}
+    y0::Array{Float64, 1} ##TODO: allow any AbstractFloat
     work::RKWorkspace
 end
 
+# the dopri5.f code seems to use the maximum not the minimum (for the order) -- whereas
+#`ODE.jl` uses the formulas from the book which use the minimum. This needs to be resolved.
+# It seems to be an issue when using embedded methods whether to use the larger or smaller
+# order method for extrapolation, though the dormand prince pairs where specifically
+# designed for the larger pairs being used for extrapolation to be less problamatic
+# (as described in the Butcher 2008 book)
+#TODO: allow any AbstractFloat
 function Dopri54(func::Function, y0::Array{Float64, 1})
     #I have hard coded the stages into this `7` I think this makes the most
     #sense as each RK type will need to have its own constructor like this,
@@ -99,7 +106,7 @@ function Dopri54(func::Function, y0::Array{Float64, 1})
             0, # tdir
             0.0, # dt
             0, #out_i
-            5, #orders
+            5, #order
             false, #laststep
         )
     )

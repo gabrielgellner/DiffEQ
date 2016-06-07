@@ -1,40 +1,60 @@
 # Explicit Runge-Kutta solvers
 ##############################
 # (Hairer & Wanner 1992 p.134, p.165-169)
+# Dormand-Prince https://en.wikipedia.org/wiki/Dormand%E2%80%93Prince_method
+type RKTableau{T <: Real}
+    nstages::Int
+    a::Matrix{T}
+    b::Matrix{T}
+    c::Vector{T}
+end
+
+function Base.convert{Tnew <: AbstractFloat}(::Type{Tnew}, rktab::RKTableau)
+    RKTableau(rktab.nstages, convert(Matrix{Tnew}, rktab.a), convert(Matrix{Tnew}, rktab.b), convert(Vector{Tnew}, rktab.c))
+end
+
+# Store as Rational so that I can then convert to the needed AbstractFloat types
+#TODO: currently not implemented only use Float64
+const tab_dopri54_base = RKTableau{Rational}(
+    7, # nstages
+    #7x7 matrix (a matrix)
+    [0 0 0 0 0 0 0;
+     1//5 0 0 0 0 0 0;
+     3//40 9//40 0 0 0 0 0;
+     44/45 -56//15 32//9 0 0 0 0;
+     19372//6561 -25360/2187 64448//6561 -212//729 0 0 0;
+     9017//3168 -355//33 46732//5247 49//176 -5103//18656 0 0;
+     35//384 0 500//1113 125/192 -2187//6784 11/84 0],
+    #2x7 matrix (b matrix)
+    [35//384 0 500//1113 125//192 -2187//6784 11//84 0;
+     5179//57600 0 7571//16695 393//640 -92097//339200 187//2100 1//40],
+    #length 7 vector (c vector)
+    [0, 1//5, 3//10, 4//5, 8//9, 1, 1]
+)
+const tab_dopri54 = convert(Float64, tab_dopri54_base)
 
 ##############################
 # Adaptive Runge-Kutta methods
 ##############################
-#NOTE: naming convenction bt and btab are shorthand for Butcher Tableaus
-##TODO: get rid of the `kwargs...` and be explicit
-aode(sys::Dopri54, tspan, options::RKOptions) = rksolver_array(sys, tspan, options, bt_dopri54)
+aode(sys::Dopri54, tspan, options::RKOptions) = rksolver_array(sys, tspan, options, tab_dopri54)
 aode(sys::Dopri54, tspan;
      reltol = 1.0e-5,
      abstol = 1.0e-8,
      maxstep = 0.1*abs(tspan[end] - tspan[1]),
      minstep = abs(tspan[end] - tspan[1])/1e18,
      initstep = 0.0
-     ) = rksolver_array(sys, tspan, RKOptions(reltol, abstol, maxstep, minstep, initstep), bt_dopri54)
+     ) = rksolver_array(sys, tspan, RKOptions(reltol, abstol, maxstep, minstep, initstep), tab_dopri54)
 
-dode(sys::Dopri54, tspan, options::RKOptions) = rksolver_dense(sys, tspan, options, bt_dopri54)
+dode(sys::Dopri54, tspan, options::RKOptions) = rksolver_dense(sys, tspan, options, tab_dopri54)
 dode(sys::Dopri54, tspan;
      reltol = 1.0e-5,
      abstol = 1.0e-8,
      maxstep = 0.1*abs(tspan[end] - tspan[1]),
      minstep = abs(tspan[end] - tspan[1])/1e18,
      initstep = 0.0
-     ) = rksolver_dense(sys, tspan, RKOptions(reltol, abstol, maxstep, minstep, initstep), bt_dopri54)
+     ) = rksolver_dense(sys, tspan, RKOptions(reltol, abstol, maxstep, minstep, initstep), tab_dopri54)
 
-function rksolver_array(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, options::RKOptions, btab::TableauRKExplicit)
-    # parameters
-    # the dopri5.f code seems to use the maximum not the minimum -- whereas `ODE.jl` uses
-    # the formulas from the book which use the minimum. This needs to be resolved. It seems
-    # toe be an issue when using embedded methods whether to use the larger or smaller
-    # order method for extrapolation, though teh dormand prince pairs where specifically
-    # designed for the larger pairs being used for extrapolation to be less problamatic
-    # (as described in the Butcher 2008 book)
-    #sys.workspace.order = maximum(btab.order)
-
+function rksolver_array(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, options::RKOptions, rktab::RKTableau)
     ## Initialization
     sys.work.tstart = tspan[1]
     sys.work.tend = tspan[end]
@@ -46,7 +66,7 @@ function rksolver_array(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, o
     nsteps_fixed = length(tspan)
     ##Note: it is more column major to think of an array of points joined along
     ## columns. When returned it must be transposed.
-    ys = Array{Float64}(sys.work.ydim, nsteps_fixed)
+    ys = Array{Float64}(sys.work.ydim, nsteps_fixed) #TODO allow for any AbstractFloat
     ys[:, 1] = copy(sys.y0)
 
     # Time
@@ -56,13 +76,13 @@ function rksolver_array(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, o
     end
 
     ## Integration loop
-    dts, errs, steps = rk_stepper!(sys, tspan, ys, [], options, btab, rk_array_output!)
+    dts, errs, steps = rk_stepper!(sys, tspan, ys, [], options, rktab, rk_array_output!)
 
     ##TODO: clean up the returing of stats so that rk_stepper acutally uses a stats type.
     return RKODESolution(tspan, ys', ODESolutionStatistics(-1, steps[1], steps[2]))
 end
 
-function rksolver_dense(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, options::RKOptions, btab::TableauRKExplicit)
+function rksolver_dense(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, options::RKOptions, rktab::RKTableau)
     ## Initialization
     if length(tspan) > 2
         error("Dense output requires tspan to be two points (tstart, tend).")
@@ -87,7 +107,7 @@ function rksolver_dense(sys::RungeKuttaSystem, tspan::AbstractVector{Float64}, o
 
     # Integrate
     ##TODO: work on this argument list!
-    dts, errs = rk_stepper!(sys, tout, ys, fs, options, btab, rk_dense_output!)
+    dts, errs = rk_stepper!(sys, tout, ys, fs, options, rktab, rk_dense_output!)
 
     ##TODO: think about how to deal with solver statistics for this kind of type
     # Output solution
@@ -138,8 +158,9 @@ function hinit!(sys::AbstractODESystem, options::RKOptions)
     sys.work.dt = sys.work.tdir*min(100*h0, h1, sys.work.tdir*(sys.work.tend - sys.work.tstart))
 end
 
-function rk_stepper!(sys::RungeKuttaSystem, tout, ys, fs, options::RKOptions, btab::TableauRKExplicit, output_func!::Function)
+function rk_stepper!(sys::RungeKuttaSystem, tout, ys, fs, options::RKOptions, rktab::RKTableau, output_func!::Function)
     # Diagnostics
+    ##TODO: generalize to any AbstractFloat
     dts = Float64[]
     errs = Float64[]
     steps = [0, 0]  # [accepted, rejected]
@@ -149,7 +170,7 @@ function rk_stepper!(sys::RungeKuttaSystem, tout, ys, fs, options::RKOptions, bt
     sys.work.out_i = 2 # the index into tout and ys
     while true
         # do one step (assumes ks[:, 1] == f0)
-        rk_embedded_step!(sys, btab)
+        rk_embedded_step!(sys, rktab)
         # Check error and find a new step size:
         err, newdt = stepsize_hw92!(sys, options)
 
@@ -224,26 +245,27 @@ function rk_dense_output!(sys, ys, fs, tout)
     return nothing
 end
 
-function rk_embedded_step!(sys, btab::TableauRKExplicit)
+#TOD0: arguably rktab should be part of sys?
+function rk_embedded_step!(sys, rktab::RKTableau)
     # Does one embedded R-K step updating ytrial, yerr and ks.
     #
     # Assumes that work.ks[1, :] is already calculated!
     #
     # Modifies work.ytrial, work.yerr, work.ks, and work.ytmp
-    ##NOTE: currently hard coded to be Float64
+    ##NOTE: currently hard coded to be Float64, fix
     fill!(sys.work.ytrial, 0.0)
     fill!(sys.work.yerr, 0.0)
     for d = 1:sys.work.ydim
-        sys.work.ytrial[d] += btab.b[1, 1]*sys.work.ks[d, 1]
-        sys.work.yerr[d] += btab.b[2 ,1]*sys.work.ks[d, 1]
+        sys.work.ytrial[d] += rktab.b[1, 1]*sys.work.ks[d, 1]
+        sys.work.yerr[d] += rktab.b[2 ,1]*sys.work.ks[d, 1]
     end
-    for s = 2:btab.nstages
-        calc_next_k!(sys, s, btab)
+    for s = 2:rktab.nstages
+        calc_next_k!(sys, s, rktab)
         for d = 1:sys.work.ydim
             ##TODO: this might be a source of a slowdown, as it is better to access
-            ## btab.b by the rows not across the columns. See about changing this.
-            sys.work.ytrial[d] += btab.b[1, s]*sys.work.ks[d, s]
-            sys.work.yerr[d] += btab.b[2, s]*sys.work.ks[d, s]
+            ## rktab.b by the rows not across the columns. See about changing this.
+            sys.work.ytrial[d] += rktab.b[1, s]*sys.work.ks[d, s]
+            sys.work.yerr[d] += rktab.b[2, s]*sys.work.ks[d, s]
         end
     end
     for d = 1:sys.work.ydim
@@ -321,14 +343,14 @@ function stepsize_hw92!(sys, options)
     return err, sys.work.tdir*newdt
 end
 
-function calc_next_k!(sys, s::Integer, btab)
+function calc_next_k!(sys, s::Integer, rktab::RKTableau)
     # Calculates the next ks and puts it into ks[s, :]
     # - ks and ytmp are modified inside this function.
     sys.work.ytmp[:] = sys.work.yinit #TODO: does this line copy?
     for ss = 1:(s - 1), d = 1:sys.work.ydim
-        sys.work.ytmp[d] += sys.work.dt*sys.work.ks[d, ss]*btab.a[s, ss]
+        sys.work.ytmp[d] += sys.work.dt*sys.work.ks[d, ss]*rktab.a[s, ss]
     end
-    sys.work.ks[:, s] = sys.func(sys.work.tstart + btab.c[s]*sys.work.dt, sys.work.ytmp)
+    sys.work.ks[:, s] = sys.func(sys.work.tstart + rktab.c[s]*sys.work.dt, sys.work.ytmp)
 
     return nothing
 end
