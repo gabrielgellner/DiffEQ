@@ -10,13 +10,18 @@ If you are looking for a more mature package now, excellent solvers are found in
 `ODE.jl` package (which this code is heavily based on), the `Sundials.jl` package, and
 finally the `DASSL.jl` package.
 
+To install the package run the following from the Julia prompt:
+```julia
+Pkg.clone("https://github.com/gabrielgellner/DiffEQ.jl")
+```
+
 ## Example Usage
 The solvers in `DiffEQ` are based around using core top level functions for array outputs
 `aode`, and continuous extension (interpolating function) `dode`. Each of these top level
 functions expects a `ODESystem` type as its first argument. Currently the only system
 supported is `Dopri54`, which represents the memory and functions needed for the solver.
 
-```jl
+```julia
 using DiffEQ
 using PyPlot
 
