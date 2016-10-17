@@ -21,7 +21,7 @@ function DenseODESolution(xvals::Array{Float64, 1}, yvals::Array{Float64, 2}, fv
     DenseODESolution(size(yvals, 2), 3, xvals, yvals, fvals)
 end
 
-function call(sol::DenseODESolution, xval::Float64)
+function (sol::DenseODESolution)(xval::Float64)
     ((xval < sol.xvals[1]) | (xval > sol.xvals[end])) && throw(ArgumentError("Outside of Range"))
     xr = searchsorted(sol.xvals, xval)
     i1 = xr.stop
@@ -34,4 +34,4 @@ function call(sol::DenseODESolution, xval::Float64)
     return yout
 end
 
-call(sol::DenseODESolution, xvals::AbstractArray{Float64}) = vcat([sol(xval) for xval in xvals]...) # return a table
+(sol::DenseODESolution)(xvals::AbstractArray{Float64}) = vcat([sol(xval) for xval in xvals]...) # return a table

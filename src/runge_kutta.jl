@@ -229,7 +229,7 @@ function rk_array_output!(sys, ys, fs, tout)
     # we need out_i - 1 < nout so that we don't have infinite loop at laststep
     nout = size(ys, 2)
     while sys.work.out_i - 1 < nout && (tout[sys.work.out_i] < sys.work.tstart + sys.work.dt || islaststep(sys))
-        hermite_shampine_interp!(sub(ys, :, sys.work.out_i), tout[sys.work.out_i], sys.work.tstart, sys.work.dt, sub(sys.work.ycont, :, :))
+        hermite_shampine_interp!(view(ys, :, sys.work.out_i), tout[sys.work.out_i], sys.work.tstart, sys.work.dt, view(sys.work.ycont, :, :))
         sys.work.out_i += 1
     end
 

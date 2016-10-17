@@ -19,4 +19,4 @@ refsol = [-0.705810884230406, -0.708700436943760, 0.863899310414768]
 @test size(sol.y) == (10, 3)
 
 # is this correct? if my abstol = 1e-4 do I only have accuracy to 1e-3?
-@test abs(norm(refsol - sol.y[end, :]')) < 1e-3
+@test abs(norm(refsol - sol.y[end, :])) < 1e-3
