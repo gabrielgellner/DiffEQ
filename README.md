@@ -1,3 +1,6 @@
+# DEAD PROJECT
+This project is dead, everyone using Julia should use `DifferentialEquations.jl` instead. It does everything I dreamed of in this package, but better.
+
 # DiffEQ.jl
 
 The `DiffEQ` package is for solving differential equations numerically in Julia. Currently
